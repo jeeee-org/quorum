@@ -7,6 +7,11 @@
 # 検証: codex-cli 0.130.0 で動作確認。--output-last-message で最終回答のみ取得。
 set -euo pipefail
 
+# 可用性の自己申告（detect_panel.sh から呼ばれる）
+if [ "${1:-}" = "--check" ]; then
+  command -v codex >/dev/null 2>&1 && exit 0 || exit 1
+fi
+
 PROMPT="$(cat)"
 
 if ! command -v codex >/dev/null 2>&1; then

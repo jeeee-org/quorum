@@ -25,19 +25,23 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 - なければ `~/.claude/skills/fusion/scripts/detect_panel.sh` を Bash で実行し、**利用可能なバックエンドを全部**パネリストに使う。
 - **最低2パネリスト**にする。`opus` しか無い場合は **Opus 4.8 を2回独立実行**する（同一モデルの2回でも統合すれば単発を上回る、が本スキルの前提）。
 
-検出される可能性のあるバックエンド：
+**バックエンドは規約ベース（汎用）**。detect_panel.sh は `scripts/run_<name>.sh` を自動ディスカバリし、各スクリプトの `--check`（exit 0=可用）で取捨する。出力された `<name>` ごとに `scripts/run_<name>.sh` を呼べばよい（個別の分岐を SKILL に書かない）。
+
+現状検出され得るバックエンド（例）：
 | backend | 実体 | 投げ方 |
 |---|---|---|
-| `opus` | Opus 4.8 | Task でサブエージェントを spawn（web検索・bash 込み） |
-| `codex` | GPT-5.5 | `scripts/run_codex.sh` に プロンプトを stdin で渡す |
-| `gemini` | Gemini | `scripts/run_gemini.sh` に プロンプトを stdin で渡す |
-| `grok` | Grok (xAI) | `scripts/run_grok.sh` に プロンプトを stdin で渡す（要 `XAI_API_KEY`） |
+| `opus` | Opus 4.8 | Task でサブエージェントを spawn（web検索・bash 込み）。スクリプトではなく特別扱い |
+| `codex` | GPT-5.5 | `scripts/run_codex.sh` に プロンプトを stdin |
+| `gemini` | Gemini | `scripts/run_gemini.sh`（既定除外・`FUSION_ENABLE_GEMINI=1` で可用） |
+| `grok` | Grok (xAI) | `scripts/run_grok.sh`（grok CLI=サブスク枠 or `XAI_API_KEY`） |
+
+新しいモデルを足すには、規約に従う `run_<name>.sh`（`--check` で可用判定＋stdin→stdout）を置くだけ。detect も fan-out も無改修で対応する。
 
 ### 2. fan-out（独立・並列・ブラインド）
 - **全パネリストに完全に同じプロンプト（ユーザーの問い）をそのまま渡す**。言い換え・役割付与（「批評家として」等）はしない。多様性は演出せず独立実行から収穫する。
 - `opus` パネリストは Task でサブエージェントとして並列起動。各自に web 検索と bash を使って独立に調べさせる。
-- 外部モデル（`codex`/`gemini`/`grok`）は Bash で対応スクリプトを実行し、標準出力（回答全文）を回収する。プロンプトは stdin で渡す：
-  - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/fusion/scripts/run_grok.sh`
+- 非 opus の各バックエンド `<name>` は Bash で `scripts/run_<name>.sh` を実行し、標準出力（回答全文）を回収する。プロンプトは stdin で渡す：
+  - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/fusion/scripts/run_<name>.sh`
 - パネリストどうしの中間結果は**互いに見せない**。
 
 ### 3. judge（突き合わせ）
@@ -52,11 +56,16 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 各項目には**どのパネリスト由来か**を明示する。
 
 ### 4. fuse（最終回答）
-上の分析を根拠に、メイン Opus が最終回答を書く。出力形式：
+上の分析を根拠に、メイン Opus が最終回答を書く。**出力形式は `--output-format` で切替**（既定 `text`）。
 
+**`text`（既定・人間向け）**
 1. **最終回答**（本体・トップに置く）
 2. **監査証跡（audit trail）**：上記の構造化分析を畳んで添える（どの回答者が何を言ったか追える形で）。
    - **継ぎ目チェック表は常設**（省略不可）。🕳️ 欠落カテゴリがあれば、その補足を最終回答にも反映する。
+
+**`json`（機械可読）**
+- `~/.claude/skills/fusion/references/output_schema.json` に**準拠した単一の ```json ブロックだけ**を出力する（前後に散文を付けない）。
+- `final_answer` に最終回答（markdown 可）、`seam_check` に継ぎ目カテゴリ全件、`panel.dropped` に除外/timeout したバックエンドを必ず入れる。
 
 ## 注意
 - コストは概ね単一回答の **N倍トークン**、レイテンシは**最も遅いパネリストに律速**。高ステークスの問いに限定して使う。

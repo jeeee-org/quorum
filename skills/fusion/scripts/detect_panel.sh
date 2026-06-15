@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# 利用可能なパネリスト・バックエンドを1行ずつ出力する。
-# opus は Claude Code 内で常に利用可能（このスクリプトの外で Task により spawn）。
+# 利用可能なパネリスト・バックエンドを1行ずつ出力する（汎用ディスカバリ）。
+#
+# 規約: scripts/ 配下の `run_<name>.sh` が1パネリスト・バックエンド。
+#   - `run_<name>.sh --check` … 使えるなら exit 0、使えないなら非0
+#   - `run_<name>.sh`（引数なし）… プロンプトを stdin で受け、回答を stdout へ
+# 新しいモデルを足したい時は、この規約に従う run_<name>.sh を置くだけでよい
+# （detect_panel.sh も SKILL.md も編集不要）。
+#
+# opus は Claude Code 内で常に利用可能（スクリプトではなく Task で spawn）。
 set -euo pipefail
+export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
 
 echo opus
-command -v codex >/dev/null 2>&1 && echo codex || true
 
-# gemini は「導入済みだが既定パネルからは除外」。
-# 使いたい時だけ FUSION_ENABLE_GEMINI=1 で明示的に有効化する。
-# 理由: 無料枠は (1) pro 容量が枯渇しがち (2) データが学習利用され得る。
-#       常用するなら有料 API キー（学習不使用・容量確保）を推奨。
-if [ -n "${FUSION_ENABLE_GEMINI:-}" ] && command -v gemini >/dev/null 2>&1; then
-  echo gemini
-fi
-
-# grok は (a) Grok Build CLI（サブスク枠）が入っているか
-#         (b) xAI API キー（従量）+ curl があれば利用可能。
-export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
-if command -v grok >/dev/null 2>&1 || { [ -n "${XAI_API_KEY:-}" ] && command -v curl >/dev/null 2>&1; }; then
-  echo grok
-fi
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+for s in "$SCRIPT_DIR"/run_*.sh; do
+  [ -e "$s" ] || continue
+  name="$(basename "$s")"; name="${name#run_}"; name="${name%.sh}"
+  if bash "$s" --check >/dev/null 2>&1; then
+    echo "$name"
+  fi
+done

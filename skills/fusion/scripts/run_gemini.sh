@@ -8,6 +8,11 @@
 # モデルは GEMINI_MODEL で上書き可（無料/有料で“同じモデル”を指定すれば精度は同じ）。
 set -euo pipefail
 
+# 可用性の自己申告。gemini は既定で除外、FUSION_ENABLE_GEMINI=1 の時だけ有効。
+if [ "${1:-}" = "--check" ]; then
+  [ -n "${FUSION_ENABLE_GEMINI:-}" ] && command -v gemini >/dev/null 2>&1 && exit 0 || exit 1
+fi
+
 MODEL="${GEMINI_MODEL:-gemini-2.5-pro}"
 PROMPT="$(cat)"
 

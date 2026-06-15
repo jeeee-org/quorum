@@ -13,6 +13,13 @@ set -euo pipefail
 # 標準のインストール先を PATH に追加（Claude Code の非ログインシェル対策）
 export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
 
+# 可用性の自己申告: grok CLI があるか、または XAI_API_KEY+curl があれば可用。
+if [ "${1:-}" = "--check" ]; then
+  command -v grok >/dev/null 2>&1 && exit 0
+  { [ -n "${XAI_API_KEY:-}" ] && command -v curl >/dev/null 2>&1; } && exit 0
+  exit 1
+fi
+
 MODEL="${GROK_MODEL:-}"
 PROMPT="$(cat)"
 

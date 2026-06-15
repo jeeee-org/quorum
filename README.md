@@ -76,6 +76,17 @@ cd ~/Develop/skills/fusion-forge
 
 - 自然言語: 「fusion で次の問いを解いて: …」
 - スラッシュ: `/fusion <問い>`（自動でパネル選択） / `/fusion-opus <問い>`（外部CLI不要）
+- 機械可読出力: `/fusion --output-format json <問い>` → `skills/fusion/references/output_schema.json` 準拠の単一 JSON（最終回答＋監査証跡＋継ぎ目チェックを構造化）。既定は `text`（人間向け）。
+
+## パネリストを足す（規約ベース・無改修で拡張）
+
+新しいモデルを足すのに detect も SKILL も触らない。`skills/fusion/scripts/run_<name>.sh` を**この規約で**置くだけ：
+
+1. `run_<name>.sh --check` … 使えるなら exit 0、ダメなら非0（CLI/キーの有無などを自己判定）
+2. `run_<name>.sh`（引数なし）… プロンプトを **stdin** で受け、回答全文を **stdout** へ
+3. 任意で `FUSION_TIMEOUT` を尊重（`command -v timeout` があれば `timeout "${FUSION_TIMEOUT:-300}"` でラップ）
+
+`detect_panel.sh` が `run_*.sh` を自動ディスカバリして `--check` で取捨し、fan-out は `<name>` をそのまま使う。
 
 ## Grok を使うとき
 

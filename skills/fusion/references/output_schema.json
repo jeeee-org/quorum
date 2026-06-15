@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "fusion audit output",
+  "description": "--output-format json のときに judge が出力する形。単一の ```json ブロックとしてこのスキーマに準拠させる。text 形式（既定）の人間向け監査証跡と同じ内容を機械可読にしたもの。",
+  "type": "object",
+  "required": ["question", "final_answer", "panel", "consensus", "contradictions", "seam_check"],
+  "properties": {
+    "question": { "type": "string" },
+    "final_answer": { "type": "string", "description": "最終回答（markdown 可）" },
+    "panel": {
+      "type": "object",
+      "required": ["used"],
+      "properties": {
+        "used": { "type": "array", "items": { "type": "string" }, "description": "実際に使ったパネリスト（例 opus, codex, grok）" },
+        "dropped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["backend", "reason"],
+            "properties": {
+              "backend": { "type": "string" },
+              "reason": { "type": "string", "description": "上限超過 / timeout / 空応答 など" }
+            }
+          }
+        }
+      }
+    },
+    "consensus": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["point", "sources"],
+        "properties": {
+          "point": { "type": "string" },
+          "sources": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["topic", "positions", "resolution"],
+        "properties": {
+          "topic": { "type": "string" },
+          "positions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["source", "claim"],
+              "properties": {
+                "source": { "type": "string" },
+                "claim": { "type": "string" }
+              }
+            }
+          },
+          "resolution": { "type": "string" },
+          "weighting": { "type": "string", "description": "どの根拠を重く採ったか" }
+        }
+      }
+    },
+    "partial_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["point", "sources"],
+        "properties": {
+          "point": { "type": "string" },
+          "sources": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "unique_insights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["insight", "source"],
+        "properties": {
+          "insight": { "type": "string" },
+          "source": { "type": "string" }
+        }
+      }
+    },
+    "blind_spots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["point", "added_by"],
+        "properties": {
+          "point": { "type": "string" },
+          "added_by": { "type": "string", "description": "通常 'judge'（全員欠落を補った）" }
+        }
+      }
+    },
+    "seam_check": {
+      "type": "array",
+      "description": "judge_rubric の継ぎ目カテゴリ全件（省略不可）",
+      "items": {
+        "type": "object",
+        "required": ["category", "verdict", "note"],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["境界の検証", "境界をまたぐ整合性・原子性", "失敗モード", "観測・追跡", "移行の途中状態", "コスト・撤退", "暗黙の前提"]
+          },
+          "verdict": { "type": "string", "enum": ["covered", "partial", "missing", "na"] },
+          "note": { "type": "string", "description": "帰属つき所見。missing なら judge の補足内容" }
+        }
+      }
+    },
+    "weighting_notes": { "type": "string", "description": "パネリスト重みづけの結論を一言" }
+  }
+}
