@@ -12,7 +12,7 @@
 - **opus**（自己融合）: 外部CLI不要で動く。追加課金ゼロ。
 - **codex（GPT-5.5）**: ✅ 実機検証済み（codex-cli 0.130.0、`--output-last-message` で最終回答のみ取得・end-to-end 動作確認）。
 - **gemini**: ✅ スクリプトは動作確認済み（gemini-cli 0.46.0）だが、**既定パネルからは除外**（後述）。`FUSION_ENABLE_GEMINI=1` でいつでも有効化できる。
-- **grok**: 未検証（`XAI_API_KEY` 未設定）。`run_grok.sh` の `TODO(build)` 参照。
+- **grok**: Grok Build CLI（`grok` 0.2.51）導入済み。`run_grok.sh` は **CLI（サブスク枠）優先・API フォールバック**の2方式対応。要 `grok login`（OAuth）。
 
 ### gemini を既定から外している理由
 
@@ -41,7 +41,7 @@ fusion-forge/
 │   │   ├── detect_panel.sh     # 利用可能なバックエンドを検出
 │   │   ├── run_codex.sh        # GPT-5.5（codex CLI）
 │   │   ├── run_gemini.sh       # Gemini（gemini CLI）
-│   │   └── run_grok.sh         # Grok（xAI API・要 XAI_API_KEY）
+│   │   └── run_grok.sh         # Grok（grok CLI=サブスク枠 / xAI API フォールバック）
 │   └── references/
 │       ├── panel.md            # なぜ独立並列か
 │       └── judge_rubric.md     # どう突き合わせるか
@@ -57,10 +57,10 @@ fusion-forge/
 | `opus` | Opus 4.8 | Claude Code サブエージェント | **Claude Code のプラン内**（追加課金なし） |
 | `codex` | GPT-5.5 | `codex exec` | ChatGPT ログイン=サブスク枠 / APIキー=従量 |
 | `gemini` | Gemini | `gemini -p` | Google ログイン=無料枠 / APIキー=従量 |
-| `grok` | Grok (xAI) | xAI API（curl） | **APIキー必須=従量**（消費者サブスク不可） |
+| `grok` | Grok (xAI) | `grok -p`（CLI）/ xAI API（curl） | **サブスク枠**（SuperGrok/X Premium+・`grok login`）or APIキー=従量 |
 
-- 「sh で叩く＝サブスク不可」は誤り。**ログイン方式なら codex/gemini はサブスク枠で動く**。
-- ただし **Grok だけは xAI API キー（従量課金）が前提**。
+- 「sh で叩く＝サブスク不可」は誤り。**codex / gemini / grok はいずれもログイン方式ならサブスク枠で動く**（grok は公式 Grok Build CLI 経由）。
+- API キー方式（`OPENAI_API_KEY` / `GEMINI_API_KEY` / `XAI_API_KEY`）にすると従量課金になる。
 - コストは概ね単一回答の **N倍**、レイテンシは**最遅パネリストに律速**。高ステークスの問いに限定して使う。
 
 ## インストール
@@ -79,11 +79,19 @@ cd ~/Develop/skills/fusion-forge
 
 ## Grok を使うとき
 
+**推奨：サブスク枠（Grok Build CLI）**
+```bash
+curl -fsSL https://x.ai/cli/install.sh | bash   # 導入（済）
+grok login                                       # ブラウザで SuperGrok/X Premium+ サインイン
+# 学習オフ: grok.com の Settings > Data で「Improve the model」をオフ
+```
+
+**または API キー（従量課金フォールバック）**
 ```bash
 export XAI_API_KEY=xai-...
-# 必要ならモデル名を上書き（最新を確認のこと）
-export GROK_MODEL=grok-4
+export GROK_MODEL=grok-4    # 必要ならモデル上書き（最新を確認）
 ```
+`run_grok.sh` は `grok` CLI があればそちらを優先し、無ければ API を使う。
 
 ## ビルド時に固めること（TODO）
 

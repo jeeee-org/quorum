@@ -1,21 +1,38 @@
 #!/usr/bin/env bash
-# Grok パネリスト（xAI API 経由・OpenAI 互換エンドポイント）。
-# プロンプトを stdin で受け取り、回答全文を stdout に出力する。
+# Grok パネリスト。プロンプトを stdin で受け取り、回答全文を stdout に出力する。
 #
-# 認証: xAI API キー（XAI_API_KEY）が必須。=> 従量課金（消費者サブスクは不可）。
-# 依存: curl, python3。
-# TODO(build): 最新のモデル名を確認して GROK_MODEL の既定値を更新する。
-#              Live Search（Web/X 検索）を使うなら search_parameters を有効化する。
+# 2方式に対応（CLI を優先）:
+#   1) Grok Build CLI（`grok`）= SuperGrok / X Premium+ のサブスク枠（OAuth ログイン、従量課金なし）
+#      事前に `grok login` で一度サインインしておくこと。
+#   2) xAI API（`XAI_API_KEY`）= 従量課金。CLI が無い時のフォールバック。
+#
+# 学習オフ: grok.com の Settings > Data で「Improve the model」をオフにする（アカウント単位）。
+# 検証: grok-cli 0.2.51（-p / --single）。
 set -euo pipefail
 
-MODEL="${GROK_MODEL:-grok-4}"
+# 標準のインストール先を PATH に追加（Claude Code の非ログインシェル対策）
+export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
+
+MODEL="${GROK_MODEL:-}"
 PROMPT="$(cat)"
 
-: "${XAI_API_KEY:?XAI_API_KEY が設定されていません}"
+# --- 方式1: Grok Build CLI（サブスク枠） ---
+if command -v grok >/dev/null 2>&1; then
+  if [ -n "$MODEL" ]; then
+    grok -p "$PROMPT" -m "$MODEL"
+  else
+    grok -p "$PROMPT"
+  fi
+  exit $?
+fi
+
+# --- 方式2: xAI API（従量課金フォールバック） ---
+API_MODEL="${GROK_MODEL:-grok-4}"
+: "${XAI_API_KEY:?grok CLI も XAI_API_KEY も無し（どちらかが必要）}"
 command -v curl    >/dev/null 2>&1 || { echo "[run_grok] curl が必要です" >&2; exit 127; }
 command -v python3 >/dev/null 2>&1 || { echo "[run_grok] python3 が必要です" >&2; exit 127; }
 
-PAYLOAD="$(PROMPT="$PROMPT" MODEL="$MODEL" python3 - <<'PY'
+PAYLOAD="$(PROMPT="$PROMPT" MODEL="$API_MODEL" python3 - <<'PY'
 import json, os
 print(json.dumps({
     "model": os.environ["MODEL"],

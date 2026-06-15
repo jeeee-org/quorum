@@ -14,7 +14,9 @@ if [ -n "${FUSION_ENABLE_GEMINI:-}" ] && command -v gemini >/dev/null 2>&1; then
   echo gemini
 fi
 
-# grok は xAI API キーと curl があれば利用可能（キー設定が自然なオプトイン）
-if [ -n "${XAI_API_KEY:-}" ] && command -v curl >/dev/null 2>&1; then
+# grok は (a) Grok Build CLI（サブスク枠）が入っているか
+#         (b) xAI API キー（従量）+ curl があれば利用可能。
+export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
+if command -v grok >/dev/null 2>&1 || { [ -n "${XAI_API_KEY:-}" ] && command -v curl >/dev/null 2>&1; }; then
   echo grok
 fi
