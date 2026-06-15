@@ -23,9 +23,9 @@ fi
 MODEL="${GROK_MODEL:-}"
 PROMPT="$(cat)"
 
-# コスト/時間ガード: FUSION_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
+# コスト/時間ガード: QUORUM_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
 TO=""
-command -v timeout >/dev/null 2>&1 && TO="timeout ${FUSION_TIMEOUT:-300}"
+command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"
 
 # --- 方式1: Grok Build CLI（サブスク枠） ---
 if command -v grok >/dev/null 2>&1; then

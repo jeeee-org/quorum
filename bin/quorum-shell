@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# fusion-shell — Claude Code のラッパーランチャー
+# quorum-shell — Claude Code のラッパーランチャー
 #
 # やること:
 #   1) 作業フォルダを指定（引数 or 最近使ったフォルダから選択）
@@ -7,19 +7,19 @@
 #   3) そのフォルダに cd して `claude` を起動（CLAUDE.md は claude が自動で読む）
 #
 # 使い方:
-#   fusion-shell [<folder>] [-- <claude に渡す引数/初期プロンプト...>]
-#   fusion-shell                      # 引数なし→最近のフォルダから選択
-#   fusion-shell ~/Develop/foo        # そのフォルダで起動
-#   fusion-shell ~/Develop/foo -- --model opus "まず概要を教えて"
+#   quorum-shell [<folder>] [-- <claude に渡す引数/初期プロンプト...>]
+#   quorum-shell                      # 引数なし→最近のフォルダから選択
+#   quorum-shell ~/Develop/foo        # そのフォルダで起動
+#   quorum-shell ~/Develop/foo -- --model opus "まず概要を教えて"
 #
 # 注意: cd により作業ディレクトリ＝そのフォルダになるが、ハードな隔離ではない。
 #       強く閉じ込めたい時は `-- --permission-mode <mode>` を渡す。
 set -uo pipefail
 
-RECENT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/fusion-forge/recent"
-CLAUDE_BIN="${FUSION_CLAUDE_BIN:-claude}"
+RECENT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/recent"
+CLAUDE_BIN="${QUORUM_CLAUDE_BIN:-claude}"
 
-die() { echo "fusion-shell: $*" >&2; exit 1; }
+die() { echo "quorum-shell: $*" >&2; exit 1; }
 
 command -v "$CLAUDE_BIN" >/dev/null 2>&1 || die "claude CLI が見つかりません（PATH を確認）"
 
@@ -46,7 +46,7 @@ if [ -z "$FOLDER" ]; then
     FOLDER="${RECENTS[$((sel-1))]:-}"
     [ -z "$FOLDER" ] && die "無効な選択"
   else
-    die "フォルダを指定してください（例: fusion-shell ~/Develop/foo）"
+    die "フォルダを指定してください（例: quorum-shell ~/Develop/foo）"
   fi
 fi
 

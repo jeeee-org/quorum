@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "fusion audit output",
+  "title": "quorum audit output",
   "description": "--output-format json のときに judge が出力する形。単一の ```json ブロックとしてこのスキーマに準拠させる。text 形式（既定）の人間向け監査証跡と同じ内容を機械可読にしたもの。",
   "type": "object",
   "required": ["question", "final_answer", "panel", "consensus", "contradictions", "seam_check"],

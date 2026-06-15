@@ -8,9 +8,9 @@
 # モデルは GEMINI_MODEL で上書き可（無料/有料で“同じモデル”を指定すれば精度は同じ）。
 set -euo pipefail
 
-# 可用性の自己申告。gemini は既定で除外、FUSION_ENABLE_GEMINI=1 の時だけ有効。
+# 可用性の自己申告。gemini は既定で除外、QUORUM_ENABLE_GEMINI=1 の時だけ有効。
 if [ "${1:-}" = "--check" ]; then
-  [ -n "${FUSION_ENABLE_GEMINI:-}" ] && command -v gemini >/dev/null 2>&1 && exit 0 || exit 1
+  [ -n "${QUORUM_ENABLE_GEMINI:-}" ] && command -v gemini >/dev/null 2>&1 && exit 0 || exit 1
 fi
 
 MODEL="${GEMINI_MODEL:-gemini-2.5-pro}"
@@ -21,9 +21,9 @@ if ! command -v gemini >/dev/null 2>&1; then
   exit 127
 fi
 
-# コスト/時間ガード: FUSION_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
+# コスト/時間ガード: QUORUM_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
 TO=""
-command -v timeout >/dev/null 2>&1 && TO="timeout ${FUSION_TIMEOUT:-300}"
+command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"
 
 # -p: 非対話（headless）で最終回答を stdout に出力 / -m: モデル明示
 $TO gemini -m "$MODEL" -p "$PROMPT"

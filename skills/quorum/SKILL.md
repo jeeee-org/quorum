@@ -1,28 +1,28 @@
 ---
-name: fusion
+name: quorum
 description: 高難度・高ステークスの問いを「独立並列 → judge → fuse」で解く融合スキル。同じプロンプトを複数の回答者（Opus 4.8 サブエージェント／codex=GPT-5.5／gemini／grok）に互いにブラインドで投げ、Opus 4.8 が合意・矛盾・盲点まで構造的に突き合わせて最終回答を書く。クイック/低リスクな問いには使わない（コストN倍・最遅パネリストに律速）。
 ---
 
-# Fusion（独立並列 → judge → fuse）
+# Quorum（独立並列 → judge → fuse）
 
 このスキルは **fan-out → judge → fuse** パイプラインで1問の回答品質を上げる。
 **メインの Opus 4.8 セッションがオーケストレーター兼 judge を兼ねる**（順序は反転不可：パネリストは judge を spawn できない）。
 
 > 設計思想は `references/panel.md`（なぜ独立か）と `references/judge_rubric.md`（どう統合するか）を参照。
 >
-> **スクリプト/参照ファイルの場所**: 既定のインストール先は `~/.claude/skills/fusion/`。
-> 以下の `scripts/...` `references/...` は `~/.claude/skills/fusion/` 配下を指す（CWD に依存しない絶対パスで叩くこと）。
+> **スクリプト/参照ファイルの場所**: 既定のインストール先は `~/.claude/skills/quorum/`。
+> 以下の `scripts/...` `references/...` は `~/.claude/skills/quorum/` 配下を指す（CWD に依存しない絶対パスで叩くこと）。
 
 ## 実行手順
 
 ### 0. コスト/ステークス・ガード（fan-out 前に必ず）
-- **ステークス判定**: 問いが低リスク／単純なら、**融合せず単一モデルで答える**（または `/fusion-opus` を案内）。融合は高ステークス・複雑な問い限定。コストは概ね**パネリスト数 × トークン**。
-- **パネル数の上限**: `FUSION_MAX_PANELISTS`（既定 4）を超える場合は上限まで採用する。**無音で切り捨てない** — 落としたバックエンドを必ず明示する（例「grok は上限超過のため今回は不使用」）。優先順位は「設問ドメイン適合 > 多様性（別系統モデル）> 同系の追加実行」。
-- **時間上限**: 各外部パネリストは `FUSION_TIMEOUT` 秒（既定 300）で自動打ち切り（run スクリプトに内蔵）。打ち切られたパネリストは欠席扱いで続行。
+- **ステークス判定**: 問いが低リスク／単純なら、**融合せず単一モデルで答える**（または `/quorum-opus` を案内）。融合は高ステークス・複雑な問い限定。コストは概ね**パネリスト数 × トークン**。
+- **パネル数の上限**: `QUORUM_MAX_PANELISTS`（既定 4）を超える場合は上限まで採用する。**無音で切り捨てない** — 落としたバックエンドを必ず明示する（例「grok は上限超過のため今回は不使用」）。優先順位は「設問ドメイン適合 > 多様性（別系統モデル）> 同系の追加実行」。
+- **時間上限**: 各外部パネリストは `QUORUM_TIMEOUT` 秒（既定 300）で自動打ち切り（run スクリプトに内蔵）。打ち切られたパネリストは欠席扱いで続行。
 
 ### 1. パネルを決める
 - 明示指定（例「`opus-grok` で」）があればそれに従う。
-- なければ `~/.claude/skills/fusion/scripts/detect_panel.sh` を Bash で実行し、**利用可能なバックエンドを全部**パネリストに使う。
+- なければ `~/.claude/skills/quorum/scripts/detect_panel.sh` を Bash で実行し、**利用可能なバックエンドを全部**パネリストに使う。
 - **最低2パネリスト**にする。`opus` しか無い場合は **Opus 4.8 を2回独立実行**する（同一モデルの2回でも統合すれば単発を上回る、が本スキルの前提）。
 
 **バックエンドは規約ベース（汎用）**。detect_panel.sh は `scripts/run_<name>.sh` を自動ディスカバリし、各スクリプトの `--check`（exit 0=可用）で取捨する。出力された `<name>` ごとに `scripts/run_<name>.sh` を呼べばよい（個別の分岐を SKILL に書かない）。
@@ -32,7 +32,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 |---|---|---|
 | `opus` | Opus 4.8 | Task でサブエージェントを spawn（web検索・bash 込み）。スクリプトではなく特別扱い |
 | `codex` | GPT-5.5 | `scripts/run_codex.sh` に プロンプトを stdin |
-| `gemini` | Gemini | `scripts/run_gemini.sh`（既定除外・`FUSION_ENABLE_GEMINI=1` で可用） |
+| `gemini` | Gemini | `scripts/run_gemini.sh`（既定除外・`QUORUM_ENABLE_GEMINI=1` で可用） |
 | `grok` | Grok (xAI) | `scripts/run_grok.sh`（grok CLI=サブスク枠 or `XAI_API_KEY`） |
 
 新しいモデルを足すには、規約に従う `run_<name>.sh`（`--check` で可用判定＋stdin→stdout）を置くだけ。detect も fan-out も無改修で対応する。
@@ -41,11 +41,11 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 - **全パネリストに完全に同じプロンプト（ユーザーの問い）をそのまま渡す**。言い換え・役割付与（「批評家として」等）はしない。多様性は演出せず独立実行から収穫する。
 - `opus` パネリストは Task でサブエージェントとして並列起動。各自に web 検索と bash を使って独立に調べさせる。
 - 非 opus の各バックエンド `<name>` は Bash で `scripts/run_<name>.sh` を実行し、標準出力（回答全文）を回収する。プロンプトは stdin で渡す：
-  - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/fusion/scripts/run_<name>.sh`
+  - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/quorum/scripts/run_<name>.sh`
 - パネリストどうしの中間結果は**互いに見せない**。
 
 ### 3. judge（突き合わせ）
-回収した全回答を、メイン Opus が `~/.claude/skills/fusion/references/judge_rubric.md` に沿って構造化分析する。最低限：
+回収した全回答を、メイン Opus が `~/.claude/skills/quorum/references/judge_rubric.md` に沿って構造化分析する。最低限：
 - **Consensus**（合意点）
 - **Contradictions**（食い違い。どちらがより確からしいか根拠つきで判定）
 - **Partial coverage**（一部しか触れていない論点）
@@ -64,7 +64,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
    - **継ぎ目チェック表は常設**（省略不可）。🕳️ 欠落カテゴリがあれば、その補足を最終回答にも反映する。
 
 **`json`（機械可読）**
-- `~/.claude/skills/fusion/references/output_schema.json` に**準拠した単一の ```json ブロックだけ**を出力する（前後に散文を付けない）。
+- `~/.claude/skills/quorum/references/output_schema.json` に**準拠した単一の ```json ブロックだけ**を出力する（前後に散文を付けない）。
 - `final_answer` に最終回答（markdown 可）、`seam_check` に継ぎ目カテゴリ全件、`panel.dropped` に除外/timeout したバックエンドを必ず入れる。
 
 ## 注意

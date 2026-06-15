@@ -19,9 +19,9 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 127
 fi
 
-# コスト/時間ガード: FUSION_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
+# コスト/時間ガード: QUORUM_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
 TO=""
-command -v timeout >/dev/null 2>&1 && TO="timeout ${FUSION_TIMEOUT:-300}"
+command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"
 
 TMP="$(mktemp)"; ERR="$(mktemp)"
 trap 'rm -f "$TMP" "$ERR"' EXIT
