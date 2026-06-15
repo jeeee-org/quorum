@@ -7,8 +7,28 @@
 
 ## いまの状態
 
-構造・ロジックは一通り完成。**codex（GPT-5.5）パネリストは実機検証済み**（codex-cli 0.130.0、`--output-last-message` で最終回答のみ取得・end-to-end 動作確認）。
-`gemini` / `grok` は当該CLI/キーが未導入のため**未検証**（`scripts/run_gemini.sh` / `run_grok.sh` の `TODO(build)` 参照）。`opus` 自己融合は外部CLI不要で動く。
+構造・ロジックは一通り完成。
+
+- **opus**（自己融合）: 外部CLI不要で動く。追加課金ゼロ。
+- **codex（GPT-5.5）**: ✅ 実機検証済み（codex-cli 0.130.0、`--output-last-message` で最終回答のみ取得・end-to-end 動作確認）。
+- **gemini**: ✅ スクリプトは動作確認済み（gemini-cli 0.46.0）だが、**既定パネルからは除外**（後述）。`FUSION_ENABLE_GEMINI=1` でいつでも有効化できる。
+- **grok**: 未検証（`XAI_API_KEY` 未設定）。`run_grok.sh` の `TODO(build)` 参照。
+
+### gemini を既定から外している理由
+
+無料枠（Google ログイン＝Code Assist 個人）で検証したところ：
+- `gemini-2.5-pro` は **容量枯渇**で実用にならない（flash は動くが quota がタイト）。
+- 無料枠は**データが製品改善＝学習に利用され得る**（Claude/Codex の「学習オフ」方針と不整合）。
+
+→ 常用するなら **有料 API キー（billing 有効化＝学習不使用・容量確保）** を推奨。
+有効化方法：
+```bash
+export FUSION_ENABLE_GEMINI=1          # 既定パネルに gemini を復帰
+# 有料キーを使う場合（学習不使用）:
+export GEMINI_API_KEY=...              # AI Studio で billing 有効化したキー
+# 無料のまま試すなら軽量モデルを既定に:
+export GEMINI_MODEL=gemini-2.5-flash
+```
 
 ## 構成
 
@@ -68,7 +88,8 @@ export GROK_MODEL=grok-4
 ## ビルド時に固めること（TODO）
 
 - [x] `codex exec` の最終回答のみ取得（`-o/--output-last-message`）→ 検証済み。
-- [ ] `gemini -p` の「最終回答のみを非対話で吐く」正確なフラグ（gemini CLI 導入後）。
+- [x] `gemini -p`（非対話）動作確認（gemini-cli 0.46.0）。※無料枠の制約により既定では無効化。
+- [ ] gemini を有料キーで本運用する場合の動作確認（学習不使用・pro 容量）。
 - [ ] Grok の最新モデル名（`GROK_MODEL` 既定値）と Live Search の要否（`XAI_API_KEY` 設定後）。
 - [ ] 空応答・タイムアウト時のフォールバック挙動の実機確認（gemini/grok）。
 - [ ] Claude Code 上で `/fusion-opus` → `/fusion` の実走確認。
