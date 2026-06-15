@@ -74,6 +74,31 @@ cd ~/Develop/skills/fusion-forge
 ```
 完了後、Claude Code を再起動するか `/reload-skills`。
 
+`install.sh` は **このリポジトリの内容を各マシンの `~/.claude`・`~/.local/bin` に“展開”する**もの。
+配置物（`~/.claude/skills/fusion` 等）は生成物なので Git には入れない。ソースは全部このリポにあるので、別PCでも `clone → install.sh` で同じ状態を再生成できる。`git pull` 後は `./install.sh` を再実行すると最新が反映される。
+
+## 別PCでのセットアップ（移植）
+
+このツールは**リポジトリが唯一の真実**。他PCでは:
+
+```bash
+# 1) ソースを取得
+git clone https://github.com/jeeee-org/fusion-forge && cd fusion-forge
+# 2) そのPCに配置（~/.claude と ~/.local/bin に展開）
+./install.sh
+# 3) ~/.local/bin が PATH に無ければ通す（例: ~/.zshrc）
+#    export PATH="$HOME/.local/bin:$PATH"
+```
+
+**各PC固有で別途必要なもの**（秘密情報のため Git には入れない・入れてはいけない）:
+- 使いたいモデルCLIの導入と**認証**:
+  - codex（OpenAI）: `codex login`
+  - grok（xAI/SuperGrok）: `curl -fsSL https://x.ai/cli/install.sh | bash` → `grok login`
+  - gemini（任意）: `npm i -g @google/gemini-cli` → ログイン（`FUSION_ENABLE_GEMINI=1` で有効化）
+- 確認: `~/.claude/skills/fusion/scripts/detect_panel.sh` で使えるパネルが出るか
+
+opus パネリストは Claude Code に内蔵のため追加導入は不要。**認証トークンはマシンごと**で、リポジトリには含まれない（`.gitignore` 済み）。
+
 ## 使い方
 
 - 自然言語: 「fusion で次の問いを解いて: …」
