@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# fusion-shell — Claude Code のラッパーランチャー
+#
+# やること:
+#   1) 作業フォルダを指定（引数 or 最近使ったフォルダから選択）
+#   2) そのフォルダの CLAUDE.md を確認（無ければ雛形作成 or 中止）
+#   3) そのフォルダに cd して `claude` を起動（CLAUDE.md は claude が自動で読む）
+#
+# 使い方:
+#   fusion-shell [<folder>] [-- <claude に渡す引数/初期プロンプト...>]
+#   fusion-shell                      # 引数なし→最近のフォルダから選択
+#   fusion-shell ~/Develop/foo        # そのフォルダで起動
+#   fusion-shell ~/Develop/foo -- --model opus "まず概要を教えて"
+#
+# 注意: cd により作業ディレクトリ＝そのフォルダになるが、ハードな隔離ではない。
+#       強く閉じ込めたい時は `-- --permission-mode <mode>` を渡す。
+set -uo pipefail
+
+RECENT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/fusion-forge/recent"
+CLAUDE_BIN="${FUSION_CLAUDE_BIN:-claude}"
+
+die() { echo "fusion-shell: $*" >&2; exit 1; }
+
+command -v "$CLAUDE_BIN" >/dev/null 2>&1 || die "claude CLI が見つかりません（PATH を確認）"
+
+# --- 引数分解: 最初の非フラグを folder、`--` 以降は claude へ渡す ---
+FOLDER=""
+CLAUDE_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --) shift; CLAUDE_ARGS+=("$@"); break ;;
+    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+    *) if [ -z "$FOLDER" ]; then FOLDER="$1"; else CLAUDE_ARGS+=("$1"); fi; shift ;;
+  esac
+done
+
+# --- フォルダ未指定なら最近のフォルダから選択 ---
+if [ -z "$FOLDER" ]; then
+  if [ -s "$RECENT_FILE" ] && [ -t 0 ]; then
+    echo "最近のフォルダ:" >&2
+    mapfile -t RECENTS < "$RECENT_FILE"
+    i=1; for d in "${RECENTS[@]}"; do printf "  %d) %s\n" "$i" "$d" >&2; i=$((i+1)); done
+    printf "番号を選択（Enter で中止）: " >&2
+    read -r sel </dev/tty || true
+    [ -z "${sel:-}" ] && die "中止しました"
+    FOLDER="${RECENTS[$((sel-1))]:-}"
+    [ -z "$FOLDER" ] && die "無効な選択"
+  else
+    die "フォルダを指定してください（例: fusion-shell ~/Develop/foo）"
+  fi
+fi
+
+# --- 検証 ---
+[ -d "$FOLDER" ] || die "フォルダが存在しません: $FOLDER"
+FOLDER="$(cd "$FOLDER" && pwd)"  # 絶対パス化
+
+# --- CLAUDE.md チェック ---
+if [ ! -f "$FOLDER/CLAUDE.md" ]; then
+  echo "⚠ CLAUDE.md がありません: $FOLDER" >&2
+  if [ -t 0 ]; then
+    printf "[c]続行 / [s]雛形を作成 / [a]中止 (既定 a): " >&2
+    read -r ans </dev/tty || true
+    case "${ans:-a}" in
+      c|C) : ;;
+      s|S)
+        cat > "$FOLDER/CLAUDE.md" <<'TMPL'
+# CLAUDE.md
+
+このフォルダの作業に関する Claude Code への指示書。
+
+## このプロジェクトについて
+- （目的・スコープを書く）
+
+## 進め方
+- （規約・やってほしいこと/避けてほしいことを書く）
+TMPL
+        echo "✓ 雛形 CLAUDE.md を作成しました" >&2 ;;
+      *) die "中止しました" ;;
+    esac
+  else
+    die "CLAUDE.md が無いため中止（対話端末で実行すると作成を選べます）"
+  fi
+fi
+
+# --- 最近のフォルダに記録（重複除去・先頭追加・最大10件）---
+mkdir -p "$(dirname "$RECENT_FILE")"
+{
+  echo "$FOLDER"
+  [ -f "$RECENT_FILE" ] && grep -vxF "$FOLDER" "$RECENT_FILE" || true
+} | head -10 > "$RECENT_FILE.tmp"
+mv "$RECENT_FILE.tmp" "$RECENT_FILE"
+
+# --- 起動（プロセス置換でそのまま claude のターミナルへ）---
+echo "▶ $FOLDER で claude を起動します（CLAUDE.md は自動で読み込まれます）" >&2
+cd "$FOLDER" || die "cd に失敗: $FOLDER"
+exec "$CLAUDE_BIN" "${CLAUDE_ARGS[@]}"

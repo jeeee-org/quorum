@@ -34,7 +34,9 @@ export GEMINI_MODEL=gemini-2.5-flash
 
 ```
 fusion-forge/
-├── install.sh                  # ~/.claude へ配置
+├── install.sh                  # ~/.claude へ配置＋ランチャーを symlink
+├── bin/
+│   └── fusion-shell            # Claude Code ラッパーランチャー
 ├── skills/fusion/
 │   ├── SKILL.md                # 中核の台本（メイン Opus への手順書）
 │   ├── scripts/
@@ -77,6 +79,21 @@ cd ~/Develop/skills/fusion-forge
 - 自然言語: 「fusion で次の問いを解いて: …」
 - スラッシュ: `/fusion <問い>`（自動でパネル選択） / `/fusion-opus <問い>`（外部CLI不要）
 - 機械可読出力: `/fusion --output-format json <問い>` → `skills/fusion/references/output_schema.json` 準拠の単一 JSON（最終回答＋監査証跡＋継ぎ目チェックを構造化）。既定は `text`（人間向け）。
+
+## ランチャー（fusion-shell）
+
+作業フォルダを選んで Claude Code を起動するラッパー。**Claude Code は起動フォルダの `CLAUDE.md` を自動で読む**ので、ランチャーは「フォルダ選択・CLAUDE.md 確認・そのフォルダで起動」を一手にする。
+
+```bash
+fusion-shell                       # 引数なし→最近使ったフォルダから選択
+fusion-shell ~/Develop/foo         # そのフォルダで claude を起動
+fusion-shell ~/Develop/foo -- --model opus "まず概要を教えて"   # -- 以降は claude へ
+```
+
+- `CLAUDE.md` が無ければ「続行 / 雛形作成 / 中止」を選べる。
+- 最近使ったフォルダを記録（`~/.local/share/fusion-forge/recent`）。
+- そのセッションでは `/fusion` などのスキルもそのまま使える（グローバル導入のため）。
+- **注意**: `cd` でそのフォルダが作業ディレクトリ＝コンテキストになるが、ハードな隔離ではない。強く閉じ込めたいときは `-- --permission-mode <mode>` を渡す。
 
 ## パネリストを足す（規約ベース・無改修で拡張）
 
