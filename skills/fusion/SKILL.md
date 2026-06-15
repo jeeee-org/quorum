@@ -9,12 +9,15 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 **メインの Opus 4.8 セッションがオーケストレーター兼 judge を兼ねる**（順序は反転不可：パネリストは judge を spawn できない）。
 
 > 設計思想は `references/panel.md`（なぜ独立か）と `references/judge_rubric.md`（どう統合するか）を参照。
+>
+> **スクリプト/参照ファイルの場所**: 既定のインストール先は `~/.claude/skills/fusion/`。
+> 以下の `scripts/...` `references/...` は `~/.claude/skills/fusion/` 配下を指す（CWD に依存しない絶対パスで叩くこと）。
 
 ## 実行手順
 
 ### 1. パネルを決める
 - 明示指定（例「`opus-grok` で」）があればそれに従う。
-- なければ `scripts/detect_panel.sh` を Bash で実行し、**利用可能なバックエンドを全部**パネリストに使う。
+- なければ `~/.claude/skills/fusion/scripts/detect_panel.sh` を Bash で実行し、**利用可能なバックエンドを全部**パネリストに使う。
 - **最低2パネリスト**にする。`opus` しか無い場合は **Opus 4.8 を2回独立実行**する（同一モデルの2回でも統合すれば単発を上回る、が本スキルの前提）。
 
 検出される可能性のあるバックエンド：
@@ -29,11 +32,11 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 - **全パネリストに完全に同じプロンプト（ユーザーの問い）をそのまま渡す**。言い換え・役割付与（「批評家として」等）はしない。多様性は演出せず独立実行から収穫する。
 - `opus` パネリストは Task でサブエージェントとして並列起動。各自に web 検索と bash を使って独立に調べさせる。
 - 外部モデル（`codex`/`gemini`/`grok`）は Bash で対応スクリプトを実行し、標準出力（回答全文）を回収する。プロンプトは stdin で渡す：
-  - 例: `printf '%s' "$PROMPT" | bash skills/fusion/scripts/run_grok.sh`
+  - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/fusion/scripts/run_grok.sh`
 - パネリストどうしの中間結果は**互いに見せない**。
 
 ### 3. judge（突き合わせ）
-回収した全回答を、メイン Opus が `references/judge_rubric.md` に沿って構造化分析する。最低限：
+回収した全回答を、メイン Opus が `~/.claude/skills/fusion/references/judge_rubric.md` に沿って構造化分析する。最低限：
 - **Consensus**（合意点）
 - **Contradictions**（食い違い。どちらがより確からしいか根拠つきで判定）
 - **Partial coverage**（一部しか触れていない論点）

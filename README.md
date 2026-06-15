@@ -5,10 +5,10 @@
 
 > [`duolahypercho/fusion-fable`](https://github.com/duolahypercho/fusion-fable) の設計思想を参考に、**一から自作・Grok 対応を追加**したもの。
 
-## いまの状態：雛形（skeleton）
+## いまの状態
 
-構造とロジックは一通り入っているが、**外部CLIの正確な呼び出し方は未検証**（`scripts/*.sh` の `TODO(build)` 参照）。
-`opus` 自己融合（外部CLI不要）は雛形のままでも動かしやすい。外部モデルは実機で叩いて固める前提。
+構造・ロジックは一通り完成。**codex（GPT-5.5）パネリストは実機検証済み**（codex-cli 0.130.0、`--output-last-message` で最終回答のみ取得・end-to-end 動作確認）。
+`gemini` / `grok` は当該CLI/キーが未導入のため**未検証**（`scripts/run_gemini.sh` / `run_grok.sh` の `TODO(build)` 参照）。`opus` 自己融合は外部CLI不要で動く。
 
 ## 構成
 
@@ -67,6 +67,8 @@ export GROK_MODEL=grok-4
 
 ## ビルド時に固めること（TODO）
 
-- `codex exec` / `gemini -p` の「最終回答のみを非対話で吐く」正確なフラグ。
-- Grok の最新モデル名（`GROK_MODEL` 既定値）と Live Search の要否。
-- 各CLIの実機テスト（空応答・タイムアウト時のフォールバック確認）。
+- [x] `codex exec` の最終回答のみ取得（`-o/--output-last-message`）→ 検証済み。
+- [ ] `gemini -p` の「最終回答のみを非対話で吐く」正確なフラグ（gemini CLI 導入後）。
+- [ ] Grok の最新モデル名（`GROK_MODEL` 既定値）と Live Search の要否（`XAI_API_KEY` 設定後）。
+- [ ] 空応答・タイムアウト時のフォールバック挙動の実機確認（gemini/grok）。
+- [ ] Claude Code 上で `/fusion-opus` → `/fusion` の実走確認。
