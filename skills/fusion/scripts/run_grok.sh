@@ -16,12 +16,16 @@ export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
 MODEL="${GROK_MODEL:-}"
 PROMPT="$(cat)"
 
+# コスト/時間ガード: FUSION_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
+TO=""
+command -v timeout >/dev/null 2>&1 && TO="timeout ${FUSION_TIMEOUT:-300}"
+
 # --- 方式1: Grok Build CLI（サブスク枠） ---
 if command -v grok >/dev/null 2>&1; then
   if [ -n "$MODEL" ]; then
-    grok -p "$PROMPT" -m "$MODEL"
+    $TO grok -p "$PROMPT" -m "$MODEL"
   else
-    grok -p "$PROMPT"
+    $TO grok -p "$PROMPT"
   fi
   exit $?
 fi
@@ -42,7 +46,7 @@ print(json.dumps({
 PY
 )"
 
-curl -sS https://api.x.ai/v1/chat/completions \
+$TO curl -sS https://api.x.ai/v1/chat/completions \
   -H "Authorization: Bearer ${XAI_API_KEY}" \
   -H "Content-Type: application/json" \
   -d "$PAYLOAD" \

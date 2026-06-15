@@ -16,5 +16,9 @@ if ! command -v gemini >/dev/null 2>&1; then
   exit 127
 fi
 
+# コスト/時間ガード: FUSION_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
+TO=""
+command -v timeout >/dev/null 2>&1 && TO="timeout ${FUSION_TIMEOUT:-300}"
+
 # -p: 非対話（headless）で最終回答を stdout に出力 / -m: モデル明示
-gemini -m "$MODEL" -p "$PROMPT"
+$TO gemini -m "$MODEL" -p "$PROMPT"
