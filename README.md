@@ -49,7 +49,8 @@ quorum/
 │   │   └── run_grok.sh         # Grok（grok CLI=サブスク枠 / xAI API フォールバック）
 │   └── references/
 │       ├── panel.md            # なぜ独立並列か
-│       └── judge_rubric.md     # どう突き合わせるか
+│       ├── judge_rubric.md     # どう突き合わせるか
+│       └── context-packing.md  # fan-out 前の「司書」手順（巨大MD/ライブ状態を絞って渡す）
 └── commands/
     ├── quorum.md               # /quorum（自動パネル選択）
     └── quorum-opus.md          # /quorum-opus（Opus 自己融合・追加課金ゼロ）

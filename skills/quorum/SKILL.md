@@ -9,6 +9,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 **メインの Opus 4.8 セッションがオーケストレーター兼 judge を兼ねる**（順序は反転不可：パネリストは judge を spawn できない）。
 
 > 設計思想は `references/panel.md`（なぜ独立か）と `references/judge_rubric.md`（どう統合するか）を参照。
+> 巨大MD／ライブ状態を扱う時の入力整形は `references/context-packing.md`（fan-out 前の「司書」手順）。
 >
 > **スクリプト/参照ファイルの場所**: 既定のインストール先は `~/.claude/skills/quorum/`。
 > 以下の `scripts/...` `references/...` は `~/.claude/skills/quorum/` 配下を指す（CWD に依存しない絶対パスで叩くこと）。
@@ -38,7 +39,8 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 新しいモデルを足すには、規約に従う `run_<name>.sh`（`--check` で可用判定＋stdin→stdout）を置くだけ。detect も fan-out も無改修で対応する。
 
 ### 2. fan-out（独立・並列・ブラインド）
-- **全パネリストに完全に同じプロンプト（ユーザーの問い）をそのまま渡す**。言い換え・役割付与（「批評家として」等）はしない。多様性は演出せず独立実行から収穫する。
+- **問いが巨大MD／複数ファイル／ライブ状態に依存する場合は、fan-out の前に `references/context-packing.md` の「司書」手順で `$PROMPT` を自己完結化する**（パネリスト＝特に外部CLIはリポも `~/.claude` も見えないので、渡すテキストの質が回答の上限になる）。材料が小さい問いはこの手順を飛ばして素の問いを渡す。
+- **全パネリストに完全に同じプロンプト（ユーザーの問い／pack 済みなら同一 pack）をそのまま渡す**。言い換え・役割付与（「批評家として」等）はしない。多様性は演出せず独立実行から収穫する。
 - `opus` パネリストは Task でサブエージェントとして並列起動。各自に web 検索と bash を使って独立に調べさせる。
 - 非 opus の各バックエンド `<name>` は Bash で `scripts/run_<name>.sh` を実行し、標準出力（回答全文）を回収する。プロンプトは stdin で渡す：
   - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/quorum/scripts/run_<name>.sh`
