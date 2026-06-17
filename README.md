@@ -16,8 +16,8 @@
 
 ### gemini を既定から外している理由
 
-無料枠（Google ログイン＝Code Assist 個人）で検証したところ：
-- `gemini-2.5-pro` は **容量枯渇**で実用にならない（flash は動くが quota がタイト）。
+無料枠（Google ログイン＝Code Assist 個人 / AI Studio APIキー無料枠）で検証したところ：
+- `gemini-2.5-pro` は **無料枠では実用にならない**。AI Studio APIキー無料枠では `gemini-2.5-pro` が `limit: 0`（=構造的に不可。「retry in 30s」表示は誤解を招くが、待っても無料では通らない。要・課金アカウント紐付け）。**flash は無料枠で動作**（2026-06-17 実キー E2E 確認済）。∴ **無料枠キーの既定は `gemini-2.5-flash`**（`run_gemini.sh` の既定もこれに合わせた）。
 - 無料枠は**データが製品改善＝学習に利用され得る**（Claude/Codex の「学習オフ」方針と不整合）。
 
 → 常用するなら **有料 API キー（billing 有効化＝学習不使用・容量確保）** を推奨。

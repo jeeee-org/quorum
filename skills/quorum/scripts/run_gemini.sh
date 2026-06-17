@@ -10,8 +10,10 @@
 #      AI Studio でキー発行。grok と同じ「CLI優先＋APIキー従量」の設計に揃えてある。
 #
 # モデルは GEMINI_MODEL で上書き可（無料/有料で“同じモデル”を指定すれば精度は同じ）。
-#   安価重視なら GEMINI_MODEL=gemini-2.5-flash、品質重視なら gemini-2.5-pro。
-# 検証: gemini-cli 0.46.0 で -p（非対話）を確認。
+#   既定は gemini-2.5-flash（APIキー無料枠で動く最小構成）。品質重視は GEMINI_MODEL=gemini-2.5-pro。
+#   ⚠️ APIキー無料枠では gemini-2.5-pro は limit:0（構造的に不可、レート待ちでは解消しない）。
+#      pro を使うには課金アカウント紐付けが必要。無料枠キーは flash を使うこと。
+# 検証: gemini-cli 0.46.0 で -p（非対話）を確認。APIキー経路は実キーE2E済（2026-06-17、flash 成功 / pro は無料枠 limit:0 を確認）。
 set -euo pipefail
 
 # gemini は既定で除外、QUORUM_ENABLE_GEMINI=1 の時だけ有効（オプトイン）。
@@ -25,7 +27,7 @@ if [ "${1:-}" = "--check" ]; then
   exit 1
 fi
 
-MODEL="${GEMINI_MODEL:-gemini-2.5-pro}"
+MODEL="${GEMINI_MODEL:-gemini-2.5-flash}"
 PROMPT="$(cat)"
 
 # コスト/時間ガード: QUORUM_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
