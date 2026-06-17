@@ -11,7 +11,7 @@
 
 - **opus**（自己融合）: 外部CLI不要で動く。追加課金ゼロ。
 - **codex（GPT-5.5）**: ✅ 実機検証済み（codex-cli 0.130.0、`--output-last-message` で最終回答のみ取得・end-to-end 動作確認）。
-- **gemini**: ✅ スクリプトは動作確認済み（gemini-cli 0.46.0）だが、**既定パネルからは除外**（後述）。`QUORUM_ENABLE_GEMINI=1` でいつでも有効化できる。`run_gemini.sh` は grok と同じ **CLI（無料枠/サブスク）優先・APIキー（`GEMINI_API_KEY`/`GOOGLE_API_KEY`）従量フォールバック**の2方式対応。
+- **gemini**: ✅ APIキー経路を実キー E2E 済（2026-06-17、flash）だが、**既定パネルからは除外**（後述）。`QUORUM_ENABLE_GEMINI=1` でいつでも有効化できる。`run_gemini.sh` は **API キー（`GEMINI_API_KEY`/`GOOGLE_API_KEY`）を本線・gemini CLI は補助**の2方式（grok の CLI 優先とは逆。理由は下記）。
 - **grok**: Grok Build CLI（`grok` 0.2.51）導入済み。`run_grok.sh` は **CLI（サブスク枠）優先・API フォールバック**の2方式対応。要 `grok login`（OAuth）。
 
 ### gemini を既定から外している理由
@@ -22,7 +22,10 @@
 
 → 常用するなら **有料 API キー（billing 有効化＝学習不使用・容量確保）** を推奨。
 
-> ⚠️ **2026-06-18 に gemini CLI の個人向け無料枠/サブスクは廃止予定**（→ Antigravity 移行、Antigravity 無料枠は 20 req/日と実質不足）。廃止後は CLI の `--check` が落ち、`run_gemini.sh` は自動で **APIキー従量経路にフォールバック**する。∴ gemini を常用するなら今のうちに `GEMINI_API_KEY` を用意しておくのが素直（grok と同じ従量モデルで設計が揃う）。
+> ⚠️ **2026-06-18 に gemini CLI の個人向け（無料/Pro/Ultra）は廃止 → Antigravity CLI `agy`（Go・クローズド）へ**。本スクリプトが grok と逆に **API キーを本線**にしているのはこのため：
+> - 素の **モデル API（API キー）は別系統で影響を受けない**（公式明言）。`agy` の登場・gemini CLI の廃止に左右されない。
+> - 後継 `agy` は **headless 未成熟**で、いまパネリストに使えない：`agy -p` が非TTY（パイプ/サブプロセス）で stdout を取りこぼす（[#76](https://github.com/google-antigravity/antigravity-cli/issues/76)）／APIキー認証が未対応で基本ブラウザログイン（[#78](https://github.com/google-antigravity/antigravity-cli/issues/78)）。quorum はパネリストをサブプロセス起動するので両方を踏む。
+> - ∴ `agy` は **#76/#78 が解消したら**「サブスク枠で叩くコストゼロCLI」として再評価（その時は grok と対称になる）。それまでは API キー従量が本線。
 
 有効化方法：
 ```bash
