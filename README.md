@@ -26,6 +26,7 @@
 > - 素の **モデル API（API キー）は別系統で影響を受けない**（公式明言）。`agy` の登場・gemini CLI の廃止に左右されない。
 > - 後継 `agy` は **headless 未成熟**で、いまパネリストに使えない：`agy -p` が非TTY（パイプ/サブプロセス）で stdout を取りこぼす（[#76](https://github.com/google-antigravity/antigravity-cli/issues/76)）／APIキー認証が未対応で基本ブラウザログイン（[#78](https://github.com/google-antigravity/antigravity-cli/issues/78)）。quorum はパネリストをサブプロセス起動するので両方を踏む。
 > - ∴ `agy` は **#76/#78 が解消したら**「サブスク枠で叩くコストゼロCLI」として再評価（その時は grok と対称になる）。それまでは API キー従量が本線。
+> - 📌 **将来やるかも（低優先）**：headless 以外の経路＝**pty/対話駆動**（`expect`/`pexpect` で TTY を噛ませて応答を抜く、または agy の transcript ファイルを読む）。サブスク枠を使い倒したい強い動機が出た時の選択肢。エージェントTUIの出力整形・完了判定・初回ウィザード対応で**脆くなる前提**。当面は採用しない。
 
 有効化方法：
 ```bash
