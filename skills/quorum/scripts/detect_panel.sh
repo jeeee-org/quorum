@@ -8,8 +8,9 @@
 # opus は Claude Code 内で常に利用可能（スクリプトではなく Task で spawn）。
 #
 # 出力: パネリストを1行ずつ（**multiset**。同じ名前が複数行 = その回数だけ独立実行する）。
-#   理想パネルは grok / opus / codex / gemini の4枠。**使えない枠は独立 opus 実行で補完**する
-#   （同一モデルの複数独立実行でも、統合すれば単発を上回る＝panel.md）。
+#   既定パネルは grok / opus / codex + opus 補完の計4枠（**gemini は既定で外し、その枠は opus で補完**。
+#   gemini を入れるのは QUORUM_ENABLE_GEMINI=1 のオプトイン時のみ）。**使えない枠は独立 opus 実行で補完**
+#   する（同一モデルの複数独立実行でも、統合すれば単発を上回る＝panel.md）。
 #
 # 環境変数:
 #   QUORUM_PANEL_SIZE       目標パネル数（既定 4）。distinct な利用可能バックエンドがこれに満たない
