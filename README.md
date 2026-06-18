@@ -107,6 +107,10 @@ git clone https://github.com/jeeee-org/quorum && cd quorum
 
 opus パネリストは Claude Code に内蔵のため追加導入は不要。**認証トークンはマシンごと**で、リポジトリには含まれない（`.gitignore` 済み）。
 
+**更新を取り込む時も同じ**：`git pull` の後に `./install.sh` を再実行する（install.sh は配置先を `rm -rf` して入れ直す）。
+
+**改善メモ（`IMPROVEMENTS.md`）はマシンごとに symlink を張り直す**：正本はリポ root の `IMPROVEMENTS.md`（git 管理）で、install.sh が `~/.claude/skills/quorum/IMPROVEMENTS.md` をそのマシンのリポパスへの symlink にする。だから SKILL の「改善案の記録」運用で追記したメモは git 管理下の正本へ書き込まれ、再インストールの `rm -rf` でも消えない。symlink 自体はリポの絶対パスを指すマシン固有のものなので、**コミットには含まれず、各PCで install.sh が張り直す**。溜まったメモは `git add IMPROVEMENTS.md && git commit && git push` で共有し、他PCは `git pull` で受け取る。
+
 ## 使い方
 
 - 自然言語: 「quorum で次の問いを解いて: …」
