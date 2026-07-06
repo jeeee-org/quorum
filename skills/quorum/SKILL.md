@@ -1,12 +1,13 @@
 ---
 name: quorum
-description: 高難度・高ステークスの問いを「独立並列 → judge → fuse」で解く融合スキル。同じプロンプトを複数の回答者（Opus 4.8 サブエージェント／codex=GPT-5.5／gemini／grok）に互いにブラインドで投げ、Opus 4.8 が合意・矛盾・盲点まで構造的に突き合わせて最終回答を書く。クイック/低リスクな問いには使わない（コストN倍・最遅パネリストに律速）。
+description: 高難度・高ステークスの問いを「独立並列 → judge → fuse」で解く融合スキル。同じプロンプトを複数の回答者（Claude Opus サブエージェント／codex=GPT-5.5／gemini／grok）に互いにブラインドで投げ、メインセッションのモデル（judge）が合意・矛盾・盲点まで構造的に突き合わせて最終回答を書く。クイック/低リスクな問いには使わない（コストN倍・最遅パネリストに律速）。
 ---
 
 # Quorum（独立並列 → judge → fuse）
 
 このスキルは **fan-out → judge → fuse** パイプラインで1問の回答品質を上げる。
-**メインの Opus 4.8 セッションがオーケストレーター兼 judge を兼ねる**（順序は反転不可：パネリストは judge を spawn できない）。
+**メインセッションのモデルがオーケストレーター兼 judge を兼ねる**（順序は反転不可：パネリストは judge を spawn できない）。
+融合の品質上限は judge の突き合わせ能力で決まるので、**judge にはセッションで使える最も賢いモデル（例: Fable 5）を座らせる**のが最も効率が良い。パネル（幅）は安価なモデルで、突き合わせ（深さ）は最強モデルで（`references/panel.md`）。
 
 > 設計思想は `references/panel.md`（なぜ独立か）と `references/judge_rubric.md`（どう統合するか）を参照。
 > 巨大MD／ライブ状態を扱う時の入力整形は `references/context-packing.md`（fan-out 前の「司書」手順）。
@@ -24,7 +25,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 ### 1. パネルを決める
 - 明示指定（例「`opus-grok` で」）があればそれに従う。
 - なければ `~/.claude/skills/quorum/scripts/detect_panel.sh` を Bash で実行する。**出力は目標数（`QUORUM_PANEL_SIZE` 既定 4）まで opus で補完済みの multiset**（1行=1パネリスト、同じ名前が複数行=その回数だけ独立実行）。
-- **出力の各行をそのままパネリストにする**：`opus` 行は Task で独立サブエージェントを1体ずつ spawn（複数あれば opus#1 / opus#2 … と区別して監査証跡に明示）。非 opus 行は `scripts/run_<name>.sh` を呼ぶ。
+- **出力の各行をそのままパネリストにする**：`opus` 行は Task で独立サブエージェントを1体ずつ spawn（複数あれば opus#1 / opus#2 … と区別して監査証跡に明示）。**spawn 時に model を `opus` と明示指定する**——セッションモデルを継承させると judge と同一の高コストモデルが走り、監査証跡の帰属も嘘になる（幅はパネルの安いモデル、深さは judge の役割分担）。非 opus 行は `scripts/run_<name>.sh` を呼ぶ。
 - detect の出力行数が `QUORUM_PANEL_SIZE` を超える場合（distinct バックエンドが目標超）だけ、step 0 の優先順位でトリムし**落としたものを明示**する。
 
 **バックエンドは規約ベース（汎用）**。detect_panel.sh は `scripts/run_<name>.sh` を自動ディスカバリし、各スクリプトの `--check`（exit 0=可用）で取捨する。出力された `<name>` ごとに `scripts/run_<name>.sh` を呼べばよい（個別の分岐を SKILL に書かない）。**「使える枠は本物のモデル・足りない枠は opus」**という補完は detect_panel.sh が行うので、SKILL 側は出力を信じて回すだけでよい。
@@ -32,7 +33,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 現状検出され得るバックエンド（例）：
 | backend | 実体 | 投げ方 |
 |---|---|---|
-| `opus` | Opus 4.8 | Task でサブエージェントを spawn（web検索・bash 込み）。スクリプトではなく特別扱い |
+| `opus` | Claude Opus | Task でサブエージェントを spawn（**model=opus 明示指定**・web検索・bash 込み）。スクリプトではなく特別扱い |
 | `codex` | GPT-5.5 | `scripts/run_codex.sh` に プロンプトを stdin |
 | `gemini` | Gemini | `scripts/run_gemini.sh`（既定除外・`QUORUM_ENABLE_GEMINI=1` で可用） |
 | `grok` | Grok (xAI) | `scripts/run_grok.sh`（grok CLI=サブスク枠 or `XAI_API_KEY`） |
@@ -48,7 +49,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 - パネリストどうしの中間結果は**互いに見せない**。
 
 ### 3. judge（突き合わせ）
-回収した全回答を、メイン Opus が `~/.claude/skills/quorum/references/judge_rubric.md` に沿って構造化分析する。最低限：
+回収した全回答を、メイン（セッションのモデル）が `~/.claude/skills/quorum/references/judge_rubric.md` に沿って構造化分析する。最低限：
 - **Consensus**（合意点）
 - **Contradictions**（食い違い。どちらがより確からしいか根拠つきで判定）
 - **Partial coverage**（一部しか触れていない論点）
@@ -59,7 +60,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 各項目には**どのパネリスト由来か**を明示する。
 
 ### 4. fuse（最終回答）
-上の分析を根拠に、メイン Opus が最終回答を書く。**出力形式は `--output-format` で切替**（既定 `text`）。
+上の分析を根拠に、メイン（セッションのモデル）が最終回答を書く。**出力形式は `--output-format` で切替**（既定 `text`）。
 
 **`text`（既定・人間向け）**
 1. **最終回答**（本体・トップに置く）
