@@ -29,11 +29,29 @@ cp "$SRC_DIR"/commands/*.md "$CLAUDE_CONFIG_DIR/commands/"
 # ランチャーを symlink（リポジトリ更新が即反映される）
 ln -sf "$SRC_DIR/bin/quorum-shell" "$BIN_DIR/quorum-shell"
 
+# グローバル CLAUDE.md にトリアージ規則ブロックを挿入/更新（マーカー間のみを置換・冪等）。
+# ブロック外のユーザー記述には触れない。
+GLOBAL_MD="$CLAUDE_CONFIG_DIR/CLAUDE.md"
+RULE_SRC="$SRC_DIR/rules/quorum-triage.md"
+MARK_BEGIN='<!-- quorum-triage:begin (quorum/install.sh が管理。手動編集しない — 変更はリポの rules/quorum-triage.md へ) -->'
+MARK_END='<!-- quorum-triage:end -->'
+touch "$GLOBAL_MD"
+if grep -qF -- "$MARK_BEGIN" "$GLOBAL_MD"; then
+  awk -v begin="$MARK_BEGIN" -v end="$MARK_END" -v rulefile="$RULE_SRC" '
+    $0 == begin { print; while ((getline line < rulefile) > 0) print line; close(rulefile); skip = 1; next }
+    $0 == end   { skip = 0; print; next }
+    !skip       { print }
+  ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" && mv "$GLOBAL_MD.tmp" "$GLOBAL_MD"
+else
+  { echo ""; echo "$MARK_BEGIN"; cat "$RULE_SRC"; echo "$MARK_END"; } >> "$GLOBAL_MD"
+fi
+
 echo "✓ インストール完了: $CLAUDE_CONFIG_DIR"
 echo "  - skills/quorum"
 echo "  - skills/quorum/IMPROVEMENTS.md -> $SRC_DIR/IMPROVEMENTS.md (symlink)"
 echo "  - commands/quorum.md, commands/quorum-opus.md"
 echo "  - $BIN_DIR/quorum-shell（ランチャー）"
+echo "  - CLAUDE.md の quorum-triage ブロック（常時トリアージ規則）"
 echo ""
 echo "Claude Code を再起動するか /reload-skills を実行してください。"
 case ":$PATH:" in *":$BIN_DIR:"*) : ;; *) echo "※ $BIN_DIR が PATH に無いようです。追加してください。" ;; esac
