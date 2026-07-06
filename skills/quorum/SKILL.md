@@ -75,11 +75,25 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 2. **監査証跡（audit trail）**：上記の構造化分析を畳んで添える（どの回答者が何を言ったか追える形で）。
    - **継ぎ目チェック表は常設**（省略不可）。🕳️ 欠落カテゴリがあれば、その補足を最終回答にも反映する。
    - **事前コミット差分を1行常設**：judge の暫定回答（step 2 の precommit.md）からパネルが何を動かしたか（動かさなかったならその旨と理由）。
+   - **監査証跡を `$RUN_DIR/judge.md` にも保存する**（step 5 の escalate の入力になる。会話にしか残さない運用をしない）。
 
 **`json`（機械可読）**
 - `~/.claude/skills/quorum/references/output_schema.json` に**準拠した単一の ```json ブロックだけ**を出力する（前後に散文を付けない）。
 - `final_answer` に最終回答（markdown 可）、`seam_check` に継ぎ目カテゴリ全件、`panel.dropped` に除外/timeout したバックエンドを必ず入れる。
 - **出力する前に検証ゲートを通す**：組んだ JSON を `~/.claude/skills/quorum/scripts/validate_json.sh` に stdin で渡し（`printf '%s' "$JSON" | bash .../validate_json.sh`）、NG が出たら直して再検証してから出力する。準拠をモデルの善意に頼らない。
+
+### 5. escalate（任意・T2b: Fable 再judge）
+
+judge/fuse の結果に**次の観測可能なシグナル**が出た時だけ使う（グローバルのトリアージ規則 T2b。感覚では発動しない）：
+- Contradictions を根拠つきで裁定できず両論併記に逃げた
+- 継ぎ目チェックに 🕳️ 欠落があり judge の補足が薄い
+- 事前コミット差分が大きいのに結論が安定しない
+
+手順：
+1. **パネルは再実行しない**。`$RUN_DIR` の prompt.md／answer_*.md（匿名のまま）／judge.md を入力として、**model=fable のサブエージェント**に judge_rubric 準拠の再判定＋最終回答の書き直しを委ねる（対応表 mapping.txt は渡さない＝blind 維持）。
+2. 呼び出す前に1行宣言し、`~/.local/share/quorum/fable_calls.log` に「日時<TAB>T2b<TAB>用途一言」を追記する。
+3. 出力には「**opus judge から何が変わったか**」を1段落で明示する。変わらなければそれも記録する（次回以降 T2b を渋る材料。IMPROVEMENTS.md に集約）。
+4. fable が使えない環境なら escalate を中止し、監査証跡に「escalate 不可（環境）」と残す。
 
 ## 注意
 - コストは概ね単一回答の **N倍トークン**、レイテンシは**最も遅いパネリストに律速**。高ステークスの問いに限定して使う。
