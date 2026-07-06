@@ -107,6 +107,8 @@ git clone https://github.com/jeeee-org/quorum && cd quorum
 #    export PATH="$HOME/.local/bin:$PATH"
 ```
 
+`install.sh` は skills / commands / ランチャーに加えて、**常時トリアージ規則をそのPCのグローバル `~/.claude/CLAUDE.md` に注入**する（マーカーブロック方式・冪等。各PCで書いた既存の CLAUDE.md 記述とは共存し、ブロック外には触れない）。つまり `clone → install.sh` だけで、そのPCの**全プロジェクト**で「quorum を使うかの判断（T0/T1/T2）」が常時考慮になる。
+
 **各PC固有で別途必要なもの**（秘密情報のため Git には入れない・入れてはいけない）:
 - 使いたいモデルCLIの導入と**認証**:
   - codex（OpenAI）: `codex login`（`QUORUM_ENABLE_CODEX=1` で有効化）
@@ -120,10 +122,26 @@ opus パネリストは Claude Code に内蔵のため追加導入は不要。**
 
 **改善メモ（`IMPROVEMENTS.md`）はマシンごとに symlink を張り直す**：正本はリポ root の `IMPROVEMENTS.md`（git 管理）で、install.sh が `~/.claude/skills/quorum/IMPROVEMENTS.md` をそのマシンのリポパスへの symlink にする。だから SKILL の「改善案の記録」運用で追記したメモは git 管理下の正本へ書き込まれ、再インストールの `rm -rf` でも消えない。symlink 自体はリポの絶対パスを指すマシン固有のものなので、**コミットには含まれず、各PCで install.sh が張り直す**。溜まったメモは `git add IMPROVEMENTS.md && git commit && git push` で共有し、他PCは `git pull` で受け取る。
 
+## 常時トリアージ（グローバルルール）
+
+`rules/quorum-triage.md` が **install.sh によって各PCのグローバル `~/.claude/CLAUDE.md` にマーカーブロックとして注入**され、全プロジェクトで常時考慮される。Fable の都度課金を見据えた段階エスカレーション：
+
+```
+T0: セッションモデル（例 Opus）単発          ← 既定。日常の大半
+ ├─ 深さ型 × 高ステークス → T2a: Fable サブエージェント単発（quorum は飛ばす）
+ └─ 広さ型 × 高ステークス → T1: /quorum（panel=opus+外部、judge=メイン）
+                └─ 監査に未解決シグナル → T2b: /quorum-escalate（Fable 再judge・パネル再実行なし）
+```
+
+- 設計根拠は 2026-07-06 の実験（IMPROVEMENTS.md）：深さ型では quorum が単発の最強モデルに勝ちにくく、広さ型では panel が効く。T2b は runs/ の成果物を再利用するので追加コストは Fable 1コール分。
+- T2b の発動は**観測可能なシグナルのみ**（未解決 Contradictions / 🕳️ 欠落 / 事前コミット不安定）。モデルの「難しい気がする」では発動しない。
+- fable 呼び出しは必ず事前宣言＋ `~/.local/share/quorum/fable_calls.log` に記録（課金監査）。ユーザーの明示指定（「単発で」「quorumで」「fableで」）が常に優先。
+- 規則本文の変更は**リポの `rules/quorum-triage.md` を編集して `./install.sh`**（各PCの CLAUDE.md を直接編集しない。ブロック外のユーザー記述には触れない設計）。
+
 ## 使い方
 
 - 自然言語: 「quorum で次の問いを解いて: …」
-- スラッシュ: `/quorum <問い>`（自動でパネル選択） / `/quorum-opus <問い>`（外部CLI不要）
+- スラッシュ: `/quorum <問い>`（自動でパネル選択） / `/quorum-opus <問い>`（外部CLI不要） / `/quorum-escalate [run dir]`（直近 run を Fable で再judge）
 - 機械可読出力: `/quorum --output-format json <問い>` → `skills/quorum/references/output_schema.json` 準拠の単一 JSON（最終回答＋監査証跡＋継ぎ目チェックを構造化）。既定は `text`（人間向け）。
 
 ## ランチャー（quorum-shell）
