@@ -41,20 +41,24 @@ if [ -n "$API_KEY" ]; then
   command -v curl    >/dev/null 2>&1 || { echo "[run_gemini] curl が必要です" >&2; exit 127; }
   command -v python3 >/dev/null 2>&1 || { echo "[run_gemini] python3 が必要です" >&2; exit 127; }
 
-  PAYLOAD="$(PROMPT="$PROMPT" python3 - <<'PY'
+  # 機密を argv に載せない（実行中の ps で見えるため）: キーは curl config、本文は一時ファイル経由
+  TMPD="$(mktemp -d)"
+  trap 'rm -rf "$TMPD"' EXIT
+
+  PROMPT="$PROMPT" python3 - >"$TMPD/payload.json" <<'PY'
 import json, os
 print(json.dumps({
     "contents": [{"parts": [{"text": os.environ["PROMPT"]}]}],
 }))
 PY
-)"
+  printf 'header = "x-goog-api-key: %s"\n' "$API_KEY" > "$TMPD/curl.cfg"
 
   ENDPOINT="https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent"
 
-  $TO curl -sS "$ENDPOINT" \
-    -H "x-goog-api-key: ${API_KEY}" \
+  $TO curl -sS --config "$TMPD/curl.cfg" \
     -H "Content-Type: application/json" \
-    -d "$PAYLOAD" \
+    -d @"$TMPD/payload.json" \
+    "$ENDPOINT" \
   | python3 -c '
 import sys, json
 data = json.load(sys.stdin)
@@ -78,8 +82,9 @@ fi
 # --- 方式2: gemini CLI（補助。API キーが無い時だけ） ---
 # ⚠️ 個人向け gemini は 2026-06-18 廃止。後継 agy は headless 未成熟ゆえここでは使わない（冒頭コメント参照）。
 if command -v gemini >/dev/null 2>&1; then
-  # -p: 非対話（headless）で最終回答を stdout に出力 / -m: モデル明示
-  $TO gemini -m "$MODEL" -p "$PROMPT"
+  # -p: 非対話（headless）モード。プロンプト本文は stdin で渡す（-p は stdin 入力への追記仕様。
+  # argv に載せると実行中 ps で全文が見えるため空にする）/ -m: モデル明示
+  printf '%s' "$PROMPT" | $TO gemini -m "$MODEL" -p ""
   exit $?
 fi
 

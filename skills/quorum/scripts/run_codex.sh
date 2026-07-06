@@ -32,7 +32,8 @@ trap 'rm -f "$TMP" "$ERR"' EXIT
 
 # --skip-git-repo-check: リポジトリ外でも実行可 / --color never: 整形なし
 # -o: 最終メッセージのみをファイルへ（途中のログを混ぜない）
-if $TO codex exec --skip-git-repo-check --color never -o "$TMP" "$PROMPT" >/dev/null 2>"$ERR"; then
+# 末尾の `-`: プロンプトを stdin から読む（argv に載せると実行中 ps で全文が見えるため）
+if printf '%s' "$PROMPT" | $TO codex exec --skip-git-repo-check --color never -o "$TMP" - >/dev/null 2>"$ERR"; then
   cat "$TMP"
 else
   echo "[run_codex] codex exec が失敗しました:" >&2

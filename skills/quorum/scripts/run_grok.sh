@@ -8,6 +8,9 @@
 #
 # 学習オフ: grok.com の Settings > Data で「Improve the model」をオフにする（アカウント単位）。
 # 検証: grok-cli 0.2.51（-p / --single）。
+# ⚠️ CLI 経路はプロンプトを argv（-p）で渡すため、実行中は ps で全文が見える（grok CLI は
+#    stdin 渡し未対応）。機密は context-packing の段階でマスク済みであること。API 経路は
+#    キー・本文とも argv に載せない（curl config / 一時ファイル経由）。
 set -euo pipefail
 
 # 標準のインストール先を PATH に追加（Claude Code の非ログインシェル対策）
@@ -43,7 +46,11 @@ API_MODEL="${GROK_MODEL:-grok-4}"
 command -v curl    >/dev/null 2>&1 || { echo "[run_grok] curl が必要です" >&2; exit 127; }
 command -v python3 >/dev/null 2>&1 || { echo "[run_grok] python3 が必要です" >&2; exit 127; }
 
-PAYLOAD="$(PROMPT="$PROMPT" MODEL="$API_MODEL" python3 - <<'PY'
+# 機密を argv に載せない（実行中の ps で見えるため）: キーは curl config、本文は一時ファイル経由
+TMPD="$(mktemp -d)"
+trap 'rm -rf "$TMPD"' EXIT
+
+PROMPT="$PROMPT" MODEL="$API_MODEL" python3 - >"$TMPD/payload.json" <<'PY'
 import json, os
 print(json.dumps({
     "model": os.environ["MODEL"],
@@ -51,10 +58,10 @@ print(json.dumps({
     # "search_parameters": {"mode": "auto"},  # Live Search を使うならコメント解除
 }))
 PY
-)"
+printf 'header = "Authorization: Bearer %s"\n' "$XAI_API_KEY" > "$TMPD/curl.cfg"
 
-$TO curl -sS https://api.x.ai/v1/chat/completions \
-  -H "Authorization: Bearer ${XAI_API_KEY}" \
+$TO curl -sS --config "$TMPD/curl.cfg" \
   -H "Content-Type: application/json" \
-  -d "$PAYLOAD" \
+  -d @"$TMPD/payload.json" \
+  https://api.x.ai/v1/chat/completions \
 | python3 -c 'import sys, json; print(json.load(sys.stdin)["choices"][0]["message"]["content"])'
