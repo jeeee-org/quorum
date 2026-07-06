@@ -6,3 +6,6 @@
 # OS / エディタ
 .DS_Store
 *.swp
+
+# マシン固有の Claude Code 指示（コミットしない）
+CLAUDE.local.md
