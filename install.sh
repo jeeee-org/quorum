@@ -46,12 +46,49 @@ else
   { echo ""; echo "$MARK_BEGIN"; cat "$RULE_SRC"; echo "$MARK_END"; } >> "$GLOBAL_MD"
 fi
 
+# settings.json の env に既定の環境変数をマージ（正本: rules/settings-env.json）。
+# **未設定のキーだけ**追加する——そのPCでユーザーが明示した値（無効化の空文字など）は上書きしない。
+# settings.json が壊れた JSON の場合は触らず警告のみ（全設定を道連れにしない）。
+SETTINGS_JSON="$CLAUDE_CONFIG_DIR/settings.json"
+ENV_SRC="$SRC_DIR/rules/settings-env.json"
+python3 - "$SETTINGS_JSON" "$ENV_SRC" <<'PY' || echo "⚠ settings.json への env マージをスキップしました（上の警告参照）" >&2
+import json, os, sys
+
+settings_path, env_path = sys.argv[1], sys.argv[2]
+with open(env_path) as f:
+    desired = json.load(f)
+
+data = {}
+if os.path.exists(settings_path):
+    with open(settings_path) as f:
+        content = f.read().strip()
+    if content:
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"⚠ {settings_path} が JSON として不正なため env マージを中止: {e}", file=sys.stderr)
+            sys.exit(1)
+
+env = data.setdefault("env", {})
+changed = False
+for key, value in desired.items():
+    if key not in env:
+        env[key] = value
+        changed = True
+
+if changed:
+    with open(settings_path, "w") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+PY
+
 echo "✓ インストール完了: $CLAUDE_CONFIG_DIR"
 echo "  - skills/quorum"
 echo "  - skills/quorum/IMPROVEMENTS.md -> $SRC_DIR/IMPROVEMENTS.md (symlink)"
 echo "  - commands/quorum.md, commands/quorum-opus.md"
 echo "  - $BIN_DIR/quorum-shell（ランチャー）"
 echo "  - CLAUDE.md の quorum-triage ブロック（常時トリアージ規則）"
+echo "  - settings.json の env マージ（rules/settings-env.json の未設定キーのみ）"
 echo ""
 echo "Claude Code を再起動するか /reload-skills を実行してください。"
 case ":$PATH:" in *":$BIN_DIR:"*) : ;; *) echo "※ $BIN_DIR が PATH に無いようです。追加してください。" ;; esac
