@@ -43,8 +43,10 @@ if [ -z "$FOLDER" ]; then
     printf "番号を選択（Enter で中止）: " >&2
     read -r sel </dev/tty || true
     [ -z "${sel:-}" ] && die "中止しました"
-    FOLDER="${RECENTS[$((sel-1))]:-}"
-    [ -z "$FOLDER" ] && die "無効な選択"
+    # 数字以外・範囲外を弾く（bash は負の添字が末尾参照になるため、無検証だと誤選択する）
+    case "$sel" in *[!0-9]*) die "無効な選択: $sel" ;; esac
+    { [ "$sel" -ge 1 ] && [ "$sel" -le "${#RECENTS[@]}" ]; } || die "無効な選択: $sel"
+    FOLDER="${RECENTS[$((sel-1))]}"
   else
     die "フォルダを指定してください（例: quorum-shell ~/Develop/foo）"
   fi
