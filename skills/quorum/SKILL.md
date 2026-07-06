@@ -43,10 +43,11 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 
 ### 2. fan-out（独立・並列・ブラインド）
 - **問いが巨大MD／複数ファイル／ライブ状態に依存する場合は、fan-out の前に `references/context-packing.md` の「司書」手順で `$PROMPT` を自己完結化する**（パネリスト＝特に外部CLIはリポも `~/.claude` も見えないので、渡すテキストの質が回答の上限になる）。材料が小さい問いはこの手順を飛ばして素の問いを渡す。
+- **run ディレクトリを作り、生の入出力をファイルに残す**：`RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/runs/$(date -u +%Y%m%dT%H%M%SZ)"` を作成し、投げたプロンプトを `$RUN_DIR/prompt.md` に保存する。各パネリストの回答全文もここに保存する——外部CLIは `... | tee "$RUN_DIR/answer_<label>.md"`、opus サブエージェントの回答はメインが Write で保存。ラベルと backend の対応は `$RUN_DIR/mapping.txt`（`<label>\t<backend>` 1行ずつ）に書く（ラベルは step 3 の匿名化で使う）。judge の引用を後から検証でき、一部パネリストが落ちても成功分を失わない。
 - **全パネリストに完全に同じプロンプト（ユーザーの問い／pack 済みなら同一 pack）をそのまま渡す**。言い換え・役割付与（「批評家として」等）はしない。多様性は演出せず独立実行から収穫する。
 - `opus` パネリストは Task でサブエージェントとして並列起動。各自に web 検索と bash を使って独立に調べさせる。
 - 非 opus の各バックエンド `<name>` は Bash で `scripts/run_<name>.sh` を実行し、標準出力（回答全文）を回収する。プロンプトは stdin で渡す：
-  - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/quorum/scripts/run_<name>.sh`
+  - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/quorum/scripts/run_<name>.sh | tee "$RUN_DIR/answer_<label>.md"`
 - パネリストどうしの中間結果は**互いに見せない**。
 
 ### 3. judge（突き合わせ）
