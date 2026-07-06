@@ -82,6 +82,11 @@ fi
 # --- 方式2: gemini CLI（補助。API キーが無い時だけ） ---
 # ⚠️ 個人向け gemini は 2026-06-18 廃止。後継 agy は headless 未成熟ゆえここでは使わない（冒頭コメント参照）。
 if command -v gemini >/dev/null 2>&1; then
+  # 空の作業ディレクトリで実行する。gemini CLI はエージェント型で CWD のファイルを読めるため、
+  # 呼び出し元のリポ等を見せない（パネリストに渡すのは $PROMPT のみ、という設計の強制）。
+  WORK_DIR="$(mktemp -d)"
+  trap 'rm -rf "$WORK_DIR"' EXIT
+  cd "$WORK_DIR"
   # -p: 非対話（headless）モード。プロンプト本文は stdin で渡す（-p は stdin 入力への追記仕様。
   # argv に載せると実行中 ps で全文が見えるため空にする）/ -m: モデル明示
   printf '%s' "$PROMPT" | $TO gemini -m "$MODEL" -p ""

@@ -28,7 +28,11 @@ TO=""
 command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"
 
 TMP="$(mktemp)"; ERR="$(mktemp)"
-trap 'rm -f "$TMP" "$ERR"' EXIT
+# 空の作業ディレクトリで実行する。codex exec はエージェント型CLIで CWD のファイルを読めるため、
+# 呼び出し元のリポ等を見せない（パネリストに渡すのは $PROMPT のみ、という設計の強制）。
+WORK_DIR="$(mktemp -d)"
+trap 'rm -f "$TMP" "$ERR"; rm -rf "$WORK_DIR"' EXIT
+cd "$WORK_DIR"
 
 # --skip-git-repo-check: リポジトリ外でも実行可 / --color never: 整形なし
 # -o: 最終メッセージのみをファイルへ（途中のログを混ぜない）

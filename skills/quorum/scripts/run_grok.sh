@@ -32,6 +32,11 @@ command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"
 
 # --- 方式1: Grok Build CLI（サブスク枠） ---
 if command -v grok >/dev/null 2>&1; then
+  # 空の作業ディレクトリで実行する。grok はエージェント型CLIで CWD のファイルを読めるため、
+  # 呼び出し元のリポ等を見せない（パネリストに渡すのは $PROMPT のみ、という設計の強制）。
+  WORK_DIR="$(mktemp -d)"
+  trap 'rm -rf "$WORK_DIR"' EXIT
+  cd "$WORK_DIR"
   if [ -n "$MODEL" ]; then
     $TO grok -p "$PROMPT" -m "$MODEL"
   else
