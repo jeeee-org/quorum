@@ -76,6 +76,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 **`json`（機械可読）**
 - `~/.claude/skills/quorum/references/output_schema.json` に**準拠した単一の ```json ブロックだけ**を出力する（前後に散文を付けない）。
 - `final_answer` に最終回答（markdown 可）、`seam_check` に継ぎ目カテゴリ全件、`panel.dropped` に除外/timeout したバックエンドを必ず入れる。
+- **出力する前に検証ゲートを通す**：組んだ JSON を `~/.claude/skills/quorum/scripts/validate_json.sh` に stdin で渡し（`printf '%s' "$JSON" | bash .../validate_json.sh`）、NG が出たら直して再検証してから出力する。準拠をモデルの善意に頼らない。
 
 ## 注意
 - コストは概ね単一回答の **N倍トークン**、レイテンシは**最も遅いパネリストに律速**。高ステークスの問いに限定して使う。
