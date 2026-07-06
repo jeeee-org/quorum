@@ -108,6 +108,15 @@
         }
       }
     },
-    "weighting_notes": { "type": "string", "description": "パネリスト重みづけの結論を一言" }
+    "weighting_notes": { "type": "string", "description": "パネリスト重みづけの結論を一言" },
+    "judge_precommit": {
+      "type": "object",
+      "description": "judge がパネル回答を読む前に書いた暫定結論と、パネルによる差分（SKILL step 2 の precommit.md）",
+      "required": ["preliminary", "delta"],
+      "properties": {
+        "preliminary": { "type": "string", "description": "パネル回答を読む前の暫定結論（要約）" },
+        "delta": { "type": "string", "description": "パネルで何が変わったか。変わらなければ「変更なし」と理由" }
+      }
+    }
   }
 }
