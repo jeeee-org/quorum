@@ -14,6 +14,7 @@ Fable 5 時代の再定義が完了し、運用フェーズ。judge=セッショ
 
 ## 完了
 
+- 2026-07-10: codex パネリストを GPT-5.6 Sol に明示固定（`-m gpt-5.6-sol`）。GPT-5.6 一般公開（07-09）＋codex CLI 0.144.1 更新に追随。config 依存の暗黙 pin（未指定だと 0.144 既定=gpt-5.3-codex に化ける）を排除 → [checkpoint](docs/checkpoints/2026-07-10.md)
 - 2026-07-10: 別PC（pull 専用機）作業分2件を再実装（run_grok.sh API 既定 grok-4.5 化／IMPROVEMENTS: codex 連続欠席の検知ギャップ）。取り込み運用は research リポ NOTES.md「pull 専用の別PCからの変更の取り込み」参照
 - 2026-07-06: Fable 5 再定義・実走検証・実験（匿名化/文体正規化）・常時トリアージ導入の全面改修 → [checkpoint](docs/checkpoints/2026-07-06.md)
 
