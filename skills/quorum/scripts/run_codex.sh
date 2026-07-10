@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# GPT-5.5 パネリスト（OpenAI codex CLI 経由）。
+# GPT-5.6 Sol パネリスト（OpenAI codex CLI 経由）。モデルは -m で明示固定する。
 # プロンプトを stdin で受け取り、回答全文を stdout に出力する。
 #
 # 認証: codex に ChatGPT アカウントでログイン済みならサブスク枠で動く。
 #       APIキー（OPENAI_API_KEY）でも可だがその場合は従量課金。
-# 検証: codex-cli 0.130.0 で動作確認。--output-last-message で最終回答のみ取得。
+# 検証: codex-cli 0.144.1 で動作確認。-o で最終回答のみ取得。
 set -euo pipefail
 
 # 可用性の自己申告（detect_panel.sh から呼ばれる）
@@ -34,10 +34,13 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -f "$TMP" "$ERR"; rm -rf "$WORK_DIR"' EXIT
 cd "$WORK_DIR"
 
+# -m gpt-5.6-sol: パネル構成を全PCで固定（各PCの ~/.codex/config.toml 既定に依存させない）。
+#                 config 既定に任せると PC により 5.5 や gpt-5.3-codex に化けるため明示する。
+#                 モデルを変える場合は codex CLI で正式な model ID を確認してから差し替える。
 # --skip-git-repo-check: リポジトリ外でも実行可 / --color never: 整形なし
 # -o: 最終メッセージのみをファイルへ（途中のログを混ぜない）
 # 末尾の `-`: プロンプトを stdin から読む（argv に載せると実行中 ps で全文が見えるため）
-if printf '%s' "$PROMPT" | $TO codex exec --skip-git-repo-check --color never -o "$TMP" - >/dev/null 2>"$ERR"; then
+if printf '%s' "$PROMPT" | $TO codex exec -m gpt-5.6-sol --skip-git-repo-check --color never -o "$TMP" - >/dev/null 2>"$ERR"; then
   cat "$TMP"
 else
   echo "[run_codex] codex exec が失敗しました:" >&2

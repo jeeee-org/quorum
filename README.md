@@ -12,7 +12,7 @@
 構造・ロジックは一通り完成。
 
 - **opus**（自己融合）: 外部CLI不要で動く。追加課金ゼロ。
-- **codex（GPT-5.5）**: ✅ 実機検証済み（codex-cli 0.130.0、`--output-last-message` で最終回答のみ取得・end-to-end 動作確認）。ただし**既定パネルからは除外**（コスト抑制のため）。`QUORUM_ENABLE_CODEX=1` でいつでも有効化できる。⚠️ `codex exec` は **cwd で動くエージェント型 CLI** なので、厳密には「外部パネリストはローカルを見えない」前提の例外（サンドボックス既定でも cwd の読み取りはあり得る）。context-packing の機密マスクはこれを前提に判断する。
+- **codex（GPT-5.6 Sol）**: ✅ 実機検証済み（codex-cli 0.144.1、`-m gpt-5.6-sol` 固定・`-o` で最終回答のみ取得・end-to-end 動作確認）。ただし**既定パネルからは除外**（コスト抑制のため）。`QUORUM_ENABLE_CODEX=1` でいつでも有効化できる。⚠️ `codex exec` は **cwd で動くエージェント型 CLI** なので、厳密には「外部パネリストはローカルを見えない」前提の例外（サンドボックス既定でも cwd の読み取りはあり得る）。context-packing の機密マスクはこれを前提に判断する。
 - **gemini**: ✅ APIキー経路を実キー E2E 済（2026-06-17、flash）だが、**既定パネルからは除外**（後述）。`QUORUM_ENABLE_GEMINI=1` でいつでも有効化できる。`run_gemini.sh` は **API キー（`GEMINI_API_KEY`/`GOOGLE_API_KEY`）を本線・gemini CLI は補助**の2方式（grok の CLI 優先とは逆。理由は下記）。
 - **grok**: Grok Build CLI（`grok` 0.2.51）導入済み。`run_grok.sh` は **CLI（サブスク枠）優先・API フォールバック**の2方式対応。要 `grok login`（OAuth）。
 
@@ -51,7 +51,7 @@ quorum/
 │   ├── scripts/
 │   │   ├── detect_panel.sh     # 利用可能なバックエンドを検出
 │   │   ├── validate_json.sh    # --output-format json の決定論検証ゲート
-│   │   ├── run_codex.sh        # GPT-5.5（codex CLI）
+│   │   ├── run_codex.sh        # GPT-5.6 Sol（codex CLI）
 │   │   ├── run_gemini.sh       # Gemini（Gemini API 本線 / gemini CLI 補助）
 │   │   └── run_grok.sh         # Grok（grok CLI=サブスク枠 / xAI API フォールバック）
 │   └── references/
@@ -74,7 +74,7 @@ IMPROVEMENTS.md に書く改善メモの証拠として使える。
 | backend | 実体 | 投げ方 | 認証 / 課金 |
 |---|---|---|---|
 | `opus` | Claude Opus | Claude Code サブエージェント（**model=opus 明示指定**。judge はセッションのモデル） | **Claude Code のプラン内**（追加課金なし） |
-| `codex` | GPT-5.5 | `codex exec` | ChatGPT ログイン=サブスク枠 / APIキー=従量 |
+| `codex` | GPT-5.6 Sol | `codex exec -m gpt-5.6-sol` | ChatGPT ログイン=サブスク枠 / APIキー=従量 |
 | `gemini` | Gemini | `gemini -p` | Google ログイン=無料枠 / APIキー=従量 |
 | `grok` | Grok (xAI) | `grok -p`（CLI）/ xAI API（curl） | **サブスク枠**（SuperGrok/X Premium+・`grok login`）or APIキー=従量 |
 

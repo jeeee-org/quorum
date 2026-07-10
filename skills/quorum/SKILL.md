@@ -1,6 +1,6 @@
 ---
 name: quorum
-description: 高難度・高ステークスの問いを「独立並列 → judge → fuse」で解く融合スキル。同じプロンプトを複数の回答者（Claude Opus サブエージェント／codex=GPT-5.5／gemini／grok）に互いにブラインドで投げ、メインセッションのモデル（judge）が合意・矛盾・盲点まで構造的に突き合わせて最終回答を書く。クイック/低リスクな問いには使わない（コストN倍・最遅パネリストに律速）。
+description: 高難度・高ステークスの問いを「独立並列 → judge → fuse」で解く融合スキル。同じプロンプトを複数の回答者（Claude Opus サブエージェント／codex=GPT-5.6 Sol／gemini／grok）に互いにブラインドで投げ、メインセッションのモデル（judge）が合意・矛盾・盲点まで構造的に突き合わせて最終回答を書く。クイック/低リスクな問いには使わない（コストN倍・最遅パネリストに律速）。
 ---
 
 # Quorum（独立並列 → judge → fuse）
@@ -35,7 +35,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 | backend | 実体 | 投げ方 |
 |---|---|---|
 | `opus` | Claude Opus | Task でサブエージェントを spawn（**model=opus 明示指定**・web検索・bash 込み）。スクリプトではなく特別扱い |
-| `codex` | GPT-5.5 | `scripts/run_codex.sh` に プロンプトを stdin |
+| `codex` | GPT-5.6 Sol | `scripts/run_codex.sh` に プロンプトを stdin（`-m gpt-5.6-sol` 固定） |
 | `gemini` | Gemini | `scripts/run_gemini.sh`（既定除外・`QUORUM_ENABLE_GEMINI=1` で可用） |
 | `grok` | Grok (xAI) | `scripts/run_grok.sh`（grok CLI=サブスク枠 or `XAI_API_KEY`） |
 
