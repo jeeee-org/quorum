@@ -46,7 +46,7 @@ if command -v grok >/dev/null 2>&1; then
 fi
 
 # --- 方式2: xAI API（従量課金フォールバック） ---
-API_MODEL="${GROK_MODEL:-grok-4}"
+API_MODEL="${GROK_MODEL:-grok-4.5}"
 : "${XAI_API_KEY:?grok CLI も XAI_API_KEY も無し（どちらかが必要）}"
 command -v curl    >/dev/null 2>&1 || { echo "[run_grok] curl が必要です" >&2; exit 127; }
 command -v python3 >/dev/null 2>&1 || { echo "[run_grok] python3 が必要です" >&2; exit 127; }
