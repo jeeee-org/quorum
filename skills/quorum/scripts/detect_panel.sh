@@ -14,9 +14,10 @@
 #   ネイティブ実行で補完する。外部バックエンドは --check とオプトイン設定に従う。
 #
 # 環境変数:
-#   QUORUM_PANEL            パネルの明示指定（カンマ/空白区切りの multiset。例 "opus,opus,codex,grok"）。
-#                           指定時は検出・--check・補完を全部飛ばしてそのまま出力する（増員・固定用）。
-#                           使える名前は native（opus / codex-native）と run_<name>.sh。再帰防止
+#   QUORUM_PANEL            パネルの明示指定（カンマ/空白区切りの multiset。タブ・改行も区切りとして
+#                           受ける。例 "opus,opus,codex,grok"）。指定時は検出・--check・補完を全部
+#                           飛ばしてそのまま出力する（増員・固定用）。使える名前は native
+#                           （opus / fable / codex-native）と run_<name>.sh。再帰防止
 #                           （Codexホストの外部 codex 禁止）だけは明示指定でも上書きできない。
 #   QUORUM_PANEL_SIZE       目標パネル数（既定 3）。distinct な利用可能バックエンドがこれに満たない
 #                           分を補完する。補完枠は opus → codex → grok の優先順で可用なものを選ぶ
@@ -25,8 +26,8 @@
 #                           超える場合は全部出力し、トリムは SKILL 側の優先順位判断に委ねる。
 #   QUORUM_NATIVE           Claudeホストのネイティブ枠の差し替え（opus | fable。既定 opus）。
 #                           fable は judge と同格の高コストモデルのため、ユーザーの呼びかけ時のみ使う。
-#   QUORUM_ENABLE_CODEX     codex の可用スイッチ（**既定オン**。空文字で無効化。run_codex.sh 側で判定）。
-#   QUORUM_ENABLE_GEMINI=1  gemini を候補に含める（既定は除外。run_gemini.sh 側のオプトイン）。
+#   QUORUM_ENABLE_CODEX     codex の可用スイッチ（**既定オン**。空文字・0・false で無効化。run_codex.sh 側で判定）。
+#   QUORUM_ENABLE_GEMINI=1  gemini を候補に含める（既定は除外。0・false は無効扱い。run_gemini.sh 側のオプトイン）。
 # フラグ:
 #   --raw  補完せず「利用可能な distinct バックエンド」だけを出力（デバッグ/テスト用）。
 set -euo pipefail
@@ -72,7 +73,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # 明示指定（QUORUM_PANEL）があれば検出・補完を飛ばしてそのまま出力する。
 # --check も飛ばす（明示された枠の実行時失敗は SKILL 側が dropped として扱う）。
 if [ -n "${QUORUM_PANEL:-}" ]; then
-  IFS=', ' read -ra entries <<< "$QUORUM_PANEL"
+  # カンマ・タブ・改行を空白に正規化してから分割（改行入り指定の黙殺を防ぐ。read は1行しか読まない）
+  IFS=' ' read -ra entries <<< "$(printf '%s' "$QUORUM_PANEL" | tr ',\t\n' '   ')"
   panel=()
   for name in "${entries[@]}"; do
     [ -n "$name" ] || continue
@@ -129,6 +131,9 @@ fi
 
 # 目標に満たない分を補完（distinct が目標超なら触らない＝SKILL が優先順位でトリム）
 TARGET="${QUORUM_PANEL_SIZE:-3}"
+case "$TARGET" in
+  ''|*[!0-9]*|0) echo "QUORUM_PANEL_SIZE は正の整数を指定してください: $TARGET" >&2; exit 2 ;;
+esac
 while [ "${#panel[@]}" -lt "$TARGET" ]; do
   panel+=("$BACKFILL")
 done

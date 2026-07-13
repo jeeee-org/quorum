@@ -6,13 +6,13 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 次にやること
 
-- [ ] quorumレビュー推奨修正4件の採否（`0`/`false`無効化・明示パネル全滅時のフロア規定・区切り仕様・サイズ/名前検証）→ judge.md 参照
 - [ ] grok の「途中報告のみ exit 0」対策（実質回答なし検知。IMPROVEMENTS 2026-07-13）
 - [ ] gemini/curl経路の実キーE2EとGROK_MODEL既定値を確認する
 - [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
 
 ## 完了
 
+- 2026-07-13: quorumレビュー推奨修正を適用（`0`/`false`無効化・明示パネル全滅時フロア規定・区切り正規化・サイズ検証）、テスト68件 → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-13: 欠員補完を opus→codex→grok の優先順に一般化＋`QUORUM_NATIVE=fable`（呼びかけ時のみ）を追加、テスト58件。Claude版 `/quorum` も初実走（grok は2回連続実質回答なしで dropped） → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-13: Codex版 `$quorum` を設計レビューで初実走し、native fan-out・runs保存・judge出力を確認（Grokの実質回答なしをdropped化） → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-13: 既定パネルを3枠 opus/codex/grok に変更（codex 既定参加へ反転）＋ `QUORUM_PANEL` 明示増員を追加、テスト53件 → [checkpoint](docs/checkpoints/2026-07-13.md)

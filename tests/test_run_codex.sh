@@ -29,11 +29,15 @@ printf 'mock answer\n' > "$out"
 SH
 chmod +x "$MOCK_BIN/codex"
 
-# --check: 既定オン（未設定=参加）・空文字でオプトアウト
+# --check: 既定オン（未設定=参加）・空文字/0/false でオプトアウト
 env -u QUORUM_ENABLE_CODEX PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
 t "--check は未設定で成功（既定オン）" "$?"
 QUORUM_ENABLE_CODEX="" PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
 t "--check は空文字で非0（オプトアウト）" "$([ "$?" != "0" ]; echo $?)"
+QUORUM_ENABLE_CODEX="0" PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
+t "--check は 0 で非0（オプトアウト）" "$([ "$?" != "0" ]; echo $?)"
+QUORUM_ENABLE_CODEX="false" PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
+t "--check は false で非0（オプトアウト）" "$([ "$?" != "0" ]; echo $?)"
 
 output="$(printf 'same prompt' | PATH="$MOCK_BIN:$PATH" MOCK_ARGS="$ARGS" MOCK_STDIN="$STDIN" bash "$RUN")"
 t "最終回答をstdoutへ返す" "$([ "$output" = "mock answer" ]; echo $?)"
