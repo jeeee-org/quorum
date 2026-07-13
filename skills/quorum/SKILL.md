@@ -20,12 +20,12 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 ### 0. コスト/ステークス・ガード（fan-out 前に必ず）
 - **ステークス判定**: 問いが低リスク／単純なら、**融合せず単一モデルで答える**（または `/quorum-opus` を案内）。融合は高ステークス・複雑な問い限定。コストは概ね**パネリスト数 × トークン**。
 - **問いの型で使い分ける**: **推論の深さ**が支配的な問い（数学・設計の一貫性・単一文書の精読）は、フルパネルよりセッションモデル単発（または `/quorum-opus`）が有利なことが多い——深さは judge 側のモデルが既に持っている。フルパネルが効くのは**事実の争い・情報の広さ・盲点リスク**が支配的な問い（技術選定・障害の根因・相場観・「全員が同じ場所で転ぶ」のが怖い判断）。迷ったら「異種ベンダーの視点が結論を動かし得るか？」で判定する。
-- **目標パネル数**: `QUORUM_PANEL_SIZE`（既定 4）。**既定パネルは grok / opus + opus 補完の4枠**（codex・gemini は既定で外し、その枠は opus で補完。入れるのは `QUORUM_ENABLE_CODEX=1` / `QUORUM_ENABLE_GEMINI=1` のオプトイン時のみ）。使えない枠（PCに codex が無い等）も**独立 opus 実行で補完**して目標数を満たす（detect_panel.sh が自動でバックフィルした multiset を出力する）。distinct な利用可能バックエンドが目標を**超える**場合のみトリムし、**無音で切り捨てない** — 落としたバックエンドを必ず明示する。トリム優先順位は「設問ドメイン適合 > 多様性（別系統モデル）> 同系の追加実行（=opus 補完分）」。
+- **目標パネル数**: `QUORUM_PANEL_SIZE`（既定 3）。**既定パネルは opus / codex / grok の3枠**（gemini は既定で外し、入れるのは `QUORUM_ENABLE_GEMINI=1` のオプトイン時のみ。codex は既定参加で、外すのは `QUORUM_ENABLE_CODEX` に空文字を置いた時のみ）。使えない枠（PCに codex が無い等）は**独立 opus 実行で補完**して目標数を満たす（detect_panel.sh が自動でバックフィルした multiset を出力する）。distinct な利用可能バックエンドが目標を**超える**場合のみトリムし、**無音で切り捨てない** — 落としたバックエンドを必ず明示する。トリム優先順位は「設問ドメイン適合 > 多様性（別系統モデル）> 同系の追加実行（=opus 補完分）」。
 - **時間上限**: 各外部パネリストは `QUORUM_TIMEOUT` 秒（既定 300）で自動打ち切り（run スクリプトに内蔵）。打ち切られたパネリストは欠席扱いで続行。
 
 ### 1. パネルを決める
-- 明示指定（例「`opus-grok` で」）があればそれに従う。
-- なければ `~/.claude/skills/quorum/scripts/detect_panel.sh` を Bash で実行する。**出力は目標数（`QUORUM_PANEL_SIZE` 既定 4）まで opus で補完済みの multiset**（1行=1パネリスト、同じ名前が複数行=その回数だけ独立実行）。
+- 明示指定があればそれに従う。会話での指定（例「`opus-grok` で」「grok 2体で」「codex をもう1体足して」）は multiset として解釈してそのまま fan-out する。スクリプト経由で固定・増員したい時は `QUORUM_PANEL="opus,opus,codex,grok"`（カンマ/空白区切り）を detect_panel.sh に渡す——指定時は検出・`--check`・補完を全部飛ばしてそのまま出力される。
+- なければ `~/.claude/skills/quorum/scripts/detect_panel.sh` を Bash で実行する。**出力は目標数（`QUORUM_PANEL_SIZE` 既定 3）まで opus で補完済みの multiset**（1行=1パネリスト、同じ名前が複数行=その回数だけ独立実行）。
 - **出力の各行をそのままパネリストにする**：`opus` 行は Task で独立サブエージェントを1体ずつ spawn（複数あれば opus#1 / opus#2 … と区別して監査証跡に明示）。**spawn 時に model を `opus` と明示指定する**——セッションモデルを継承させると judge と同一の高コストモデルが走り、監査証跡の帰属も嘘になる（幅はパネルの安いモデル、深さは judge の役割分担）。非 opus 行は `scripts/run_<name>.sh` を呼ぶ。
 - detect の出力行数が `QUORUM_PANEL_SIZE` を超える場合（distinct バックエンドが目標超）だけ、step 0 の優先順位でトリムし**落としたものを明示**する。
 
@@ -35,7 +35,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 | backend | 実体 | 投げ方 |
 |---|---|---|
 | `opus` | Claude Opus | Task でサブエージェントを spawn（**model=opus 明示指定**・web検索・bash 込み）。スクリプトではなく特別扱い |
-| `codex` | GPT-5.6 Sol | `scripts/run_codex.sh` に プロンプトを stdin（`-m gpt-5.6-sol` 固定） |
+| `codex` | GPT-5.6 Sol | `scripts/run_codex.sh` に プロンプトを stdin（`-m gpt-5.6-sol` 固定・既定参加。`QUORUM_ENABLE_CODEX=""` で除外） |
 | `gemini` | Gemini | `scripts/run_gemini.sh`（既定除外・`QUORUM_ENABLE_GEMINI=1` で可用） |
 | `grok` | Grok (xAI) | `scripts/run_grok.sh`（grok CLI=サブスク枠 or `XAI_API_KEY`） |
 

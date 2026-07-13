@@ -8,11 +8,10 @@
 set -euo pipefail
 
 # 可用性の自己申告（detect_panel.sh から呼ばれる）
-# codex は既定で除外、QUORUM_ENABLE_CODEX=1 の時だけ有効（オプトイン）。
-# 既定除外の理由: ChatGPT サブスク/API の従量課金に依存し、無効化したい局面（コスト抑制・
-# opus に寄せて安定運用したい時）が多いため。明示的に有効化した時のみパネルに参加する。
+# codex は**既定で参加**（未設定=オン）。従量課金を抑えたいPCでは QUORUM_ENABLE_CODEX に
+# 空文字を置いて無効化する（settings.json の空文字は install.sh のマージで上書きされない）。
 if [ "${1:-}" = "--check" ]; then
-  [ -n "${QUORUM_ENABLE_CODEX:-}" ] || exit 1
+  [ -n "${QUORUM_ENABLE_CODEX-1}" ] || exit 1
   command -v codex >/dev/null 2>&1 && exit 0 || exit 1
 fi
 

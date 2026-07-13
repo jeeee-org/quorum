@@ -14,10 +14,14 @@
 #   ネイティブ実行で補完する。外部バックエンドは --check とオプトイン設定に従う。
 #
 # 環境変数:
-#   QUORUM_PANEL_SIZE       目標パネル数（既定 4）。distinct な利用可能バックエンドがこれに満たない
+#   QUORUM_PANEL            パネルの明示指定（カンマ/空白区切りの multiset。例 "opus,opus,codex,grok"）。
+#                           指定時は検出・--check・補完を全部飛ばしてそのまま出力する（増員・固定用）。
+#                           使える名前は native（opus / codex-native）と run_<name>.sh。再帰防止
+#                           （Codexホストの外部 codex 禁止）だけは明示指定でも上書きできない。
+#   QUORUM_PANEL_SIZE       目標パネル数（既定 3）。distinct な利用可能バックエンドがこれに満たない
 #                           分をネイティブ実行で補完。distinct がこれを超える場合は全部出力し、トリムは
 #                           SKILL 側の優先順位判断（ドメイン適合 > 多様性 > 同系追加）に委ねる。
-#   QUORUM_ENABLE_CODEX=1   codex を候補に含める（既定は除外。run_codex.sh 側のオプトイン）。
+#   QUORUM_ENABLE_CODEX     codex の可用スイッチ（**既定オン**。空文字で無効化。run_codex.sh 側で判定）。
 #   QUORUM_ENABLE_GEMINI=1  gemini を候補に含める（既定は除外。run_gemini.sh 側のオプトイン）。
 # フラグ:
 #   --raw  補完せず「利用可能な distinct バックエンド」だけを出力（デバッグ/テスト用）。
@@ -47,6 +51,25 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# 明示指定（QUORUM_PANEL）があれば検出・補完を飛ばしてそのまま出力する。
+# --check も飛ばす（明示された枠の実行時失敗は SKILL 側が dropped として扱う）。
+if [ -n "${QUORUM_PANEL:-}" ]; then
+  IFS=', ' read -ra entries <<< "$QUORUM_PANEL"
+  panel=()
+  for name in "${entries[@]}"; do
+    [ -n "$name" ] || continue
+    if [ "$name" = "$NATIVE" ]; then panel+=("$name"); continue; fi
+    if [ "$HOST" = "codex" ] && [ "$name" = "codex" ]; then
+      echo "QUORUM_PANEL: Codexホストでは外部 codex を指定できません（再帰防止）" >&2; exit 2
+    fi
+    if [ -e "$SCRIPT_DIR/run_$name.sh" ]; then panel+=("$name"); continue; fi
+    echo "QUORUM_PANEL: 不明なバックエンド: $name（$NATIVE または run_$name.sh のある名前を指定）" >&2; exit 2
+  done
+  [ "${#panel[@]}" -gt 0 ] || { echo "QUORUM_PANEL が空です" >&2; exit 2; }
+  printf '%s\n' "${panel[@]}"
+  exit 0
+fi
+
 # --check を通った distinct な外部バックエンド
 externals=()
 for s in "$SCRIPT_DIR"/run_*.sh; do
@@ -71,7 +94,7 @@ if [ "$RAW" = "1" ]; then
 fi
 
 # 目標に満たない分を独立 native 実行で補完（distinct が目標超なら触らない＝SKILL が優先順位でトリム）
-TARGET="${QUORUM_PANEL_SIZE:-4}"
+TARGET="${QUORUM_PANEL_SIZE:-3}"
 while [ "${#panel[@]}" -lt "$TARGET" ]; do
   panel+=("$NATIVE")
 done

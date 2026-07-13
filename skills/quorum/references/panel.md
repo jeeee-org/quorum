@@ -12,7 +12,7 @@
 
 ## 欠けた枠はホストのネイティブ実行で補完する（バックフィル）
 
-この性質を使い、**目標パネル数（既定4）に対し、使えない枠をホストの独立サブエージェントで埋める**。Claude Codeホストは opus、Codexホストは `codex-native` を使う。Codexホストでは外部 `run_codex.sh` を除外し、Codexのネストと再帰を防ぐ。別モデルが入る枠ほど多様性は高いが、同族補完でも偶発的な取りこぼしを減らせる。補完は `detect_panel.sh` が `QUORUM_HOST` と `QUORUM_PANEL_SIZE` に従って行う。
+この性質を使い、**目標パネル数（既定3）に対し、使えない枠をホストの独立サブエージェントで埋める**。Claude Codeホストの既定パネルは **opus / codex / grok** の3枠で、使えない枠は opus が埋める。Codexホストは `codex-native` をネイティブ枠にし、外部 `run_codex.sh` を除外してCodexのネストと再帰を防ぐ。別モデルが入る枠ほど多様性は高いが、同族補完でも偶発的な取りこぼしを減らせる。補完は `detect_panel.sh` が `QUORUM_HOST` と `QUORUM_PANEL_SIZE` に従って行い、特定バックエンドの増員・固定は `QUORUM_PANEL` の明示指定で行う。
 
 ## judge は最強モデルに座らせる（深さは judge・幅はパネル）
 
