@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quorum"
+  short_description: "高ステークスの問いを複数モデルで独立検討し監査付きで融合"
+  default_prompt: "$quorum を使って、この問いを独立並列で検討し、監査証跡付きで答えてください。"

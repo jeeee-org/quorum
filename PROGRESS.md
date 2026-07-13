@@ -2,18 +2,17 @@
 
 ## 現在地
 
-Fable 5 時代の再定義が完了し、運用フェーズ。judge=セッション最強モデル・パネル=opus＋異種ベンダー（codex/grok 有効）の構成で、常時トリアージ（T0/T1/T2a/T2b）が全PCのグローバル CLAUDE.md 経由で効く状態。
+Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
 ## 次にやること
 
-- [ ] T2a/T2b の初発動時に fable サブエージェントの課金実態を小さく確認（fable_calls.log と請求の突き合わせ）
-- [ ] 高ステークス実走のたびに盲/実名判定の差分を観測（フリップが出たら blind 委譲を既定化）
-- [ ] README「ビルド時に固めること」の実機確認残（codex/gemini stdin 経路 E2E・curl config 実キー・GROK_MODEL 既定値）
-- [ ] （方向性）opus fan-out の Workflow 移植を検討（IMPROVEMENTS.md 2026-07-06 参照）
-- [ ] codex 連続欠席の警告実装（N回連続欠席で監査証跡冒頭に表示。IMPROVEMENTS 2026-07-10 参照）
+- [ ] Codexの `$quorum` を小さい実問で初回実走し、native fan-out・runs保存・judge出力を確認する
+- [ ] gemini/curl経路の実キーE2EとGROK_MODEL既定値を確認する
+- [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
 
 ## 完了
 
+- 2026-07-13: Codex版 `$quorum`、T1連携、再帰防止、両環境インストールと45件のAPI不要テストを実装 → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-10: codex パネリストを GPT-5.6 Sol に明示固定（`-m gpt-5.6-sol`）。GPT-5.6 一般公開（07-09）＋codex CLI 0.144.1 更新に追随。config 依存の暗黙 pin（未指定だと 0.144 既定=gpt-5.3-codex に化ける）を排除 → [checkpoint](docs/checkpoints/2026-07-10.md)
 - 2026-07-10: 別PC（pull 専用機）作業分2件を再実装（run_grok.sh API 既定 grok-4.5 化／IMPROVEMENTS: codex 連続欠席の検知ギャップ）。取り込み運用は research リポ NOTES.md「pull 専用の別PCからの変更の取り込み」参照
 - 2026-07-06: Fable 5 再定義・実走検証・実験（匿名化/文体正規化）・常時トリアージ導入の全面改修 → [checkpoint](docs/checkpoints/2026-07-06.md)

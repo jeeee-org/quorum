@@ -37,10 +37,11 @@ cd "$WORK_DIR"
 # -m gpt-5.6-sol: パネル構成を全PCで固定（各PCの ~/.codex/config.toml 既定に依存させない）。
 #                 config 既定に任せると PC により 5.5 や gpt-5.3-codex に化けるため明示する。
 #                 モデルを変える場合は codex CLI で正式な model ID を確認してから差し替える。
+# --ephemeral / --ignore-user-config: セッション保存とユーザー設定由来の再帰発動を避ける
 # --skip-git-repo-check: リポジトリ外でも実行可 / --color never: 整形なし
 # -o: 最終メッセージのみをファイルへ（途中のログを混ぜない）
 # 末尾の `-`: プロンプトを stdin から読む（argv に載せると実行中 ps で全文が見えるため）
-if printf '%s' "$PROMPT" | $TO codex exec -m gpt-5.6-sol --skip-git-repo-check --color never -o "$TMP" - >/dev/null 2>"$ERR"; then
+if printf '%s' "$PROMPT" | $TO codex exec -m gpt-5.6-sol --ephemeral --ignore-user-config --skip-git-repo-check --color never -o "$TMP" - >/dev/null 2>"$ERR"; then
   cat "$TMP"
 else
   echo "[run_codex] codex exec が失敗しました:" >&2

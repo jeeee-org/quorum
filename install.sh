@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# quorum をローカルの Claude Code 設定に配置する。
+# quorum をローカルの Claude Code / Codex 設定に配置する。
 #   skills/quorum -> $CLAUDE_CONFIG_DIR/skills/quorum
+#   skills/quorum + Codex差分 -> $CODEX_HOME/skills/quorum
 #   commands/*    -> $CLAUDE_CONFIG_DIR/commands/
 #   bin/quorum-shell -> $BIN_DIR/quorum-shell（ランチャー）
-# 配置先を変えたい場合: CLAUDE_CONFIG_DIR=/path/.claude BIN_DIR=/path/bin ./install.sh
+# 配置先を変えたい場合: CLAUDE_CONFIG_DIR=/path/.claude CODEX_HOME=/path/.codex BIN_DIR=/path/bin ./install.sh
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 
-mkdir -p "$CLAUDE_CONFIG_DIR/skills" "$CLAUDE_CONFIG_DIR/commands" "$BIN_DIR"
+mkdir -p "$CLAUDE_CONFIG_DIR/skills" "$CLAUDE_CONFIG_DIR/commands" "$CODEX_HOME/skills" "$BIN_DIR"
 
 # スクリプトに実行権限を付与
 chmod +x "$SRC_DIR"/skills/quorum/scripts/*.sh "$SRC_DIR"/bin/quorum-shell
@@ -22,6 +24,14 @@ cp -R "$SRC_DIR/skills/quorum" "$CLAUDE_CONFIG_DIR/skills/quorum"
 # IMPROVEMENTS.md はリポ root（$SRC_DIR/IMPROVEMENTS.md）を正本にし、install 先は symlink。
 # 実行時の追記が git 管理下のリポ側へ書き込まれ、再インストールの rm -rf でも消えない。
 ln -sfn "$SRC_DIR/IMPROVEMENTS.md" "$CLAUDE_CONFIG_DIR/skills/quorum/IMPROVEMENTS.md"
+
+# Codex版は共有 scripts/references をコピーし、ホスト固有の SKILL.md / agents を上書きする。
+rm -rf "$CODEX_HOME/skills/quorum"
+cp -R "$SRC_DIR/skills/quorum" "$CODEX_HOME/skills/quorum"
+cp "$SRC_DIR/skills/codex-quorum/SKILL.md" "$CODEX_HOME/skills/quorum/SKILL.md"
+rm -rf "$CODEX_HOME/skills/quorum/agents"
+cp -R "$SRC_DIR/skills/codex-quorum/agents" "$CODEX_HOME/skills/quorum/agents"
+ln -sfn "$SRC_DIR/IMPROVEMENTS.md" "$CODEX_HOME/skills/quorum/IMPROVEMENTS.md"
 
 # スラッシュコマンドをコピー
 cp "$SRC_DIR"/commands/*.md "$CLAUDE_CONFIG_DIR/commands/"
@@ -44,6 +54,22 @@ if grep -qF -- "$MARK_BEGIN" "$GLOBAL_MD"; then
   ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" && mv "$GLOBAL_MD.tmp" "$GLOBAL_MD"
 else
   { echo ""; echo "$MARK_BEGIN"; cat "$RULE_SRC"; echo "$MARK_END"; } >> "$GLOBAL_MD"
+fi
+
+# Codexグローバル AGENTS.md には分類を複製せず、claude-rules の T1 と $quorum の接続だけを置く。
+CODEX_GLOBAL_MD="$CODEX_HOME/AGENTS.md"
+CODEX_RULE_SRC="$SRC_DIR/rules/codex-quorum-triage.md"
+CODEX_MARK_BEGIN='<!-- quorum-triage:begin (quorum/install.sh Codex版が管理。手動編集しない — 変更はリポの rules/codex-quorum-triage.md へ) -->'
+CODEX_MARK_END='<!-- quorum-triage:end -->'
+touch "$CODEX_GLOBAL_MD"
+if grep -qF -- "$CODEX_MARK_BEGIN" "$CODEX_GLOBAL_MD"; then
+  awk -v begin="$CODEX_MARK_BEGIN" -v end="$CODEX_MARK_END" -v rulefile="$CODEX_RULE_SRC" '
+    $0 == begin { print; while ((getline line < rulefile) > 0) print line; close(rulefile); skip = 1; next }
+    $0 == end   { skip = 0; print; next }
+    !skip       { print }
+  ' "$CODEX_GLOBAL_MD" > "$CODEX_GLOBAL_MD.tmp" && mv "$CODEX_GLOBAL_MD.tmp" "$CODEX_GLOBAL_MD"
+else
+  { [ -s "$CODEX_GLOBAL_MD" ] && echo ""; echo "$CODEX_MARK_BEGIN"; cat "$CODEX_RULE_SRC"; echo "$CODEX_MARK_END"; } >> "$CODEX_GLOBAL_MD"
 fi
 
 # settings.json の env に既定の環境変数をマージ（正本: rules/settings-env.json）。
@@ -82,13 +108,24 @@ if changed:
         f.write("\n")
 PY
 
+# グローバル指示の常時ロード上限を目安チェック（超過してもインストールは継続）。
+for global_doc in "$GLOBAL_MD" "$CODEX_GLOBAL_MD"; do
+  global_size=$(wc -c < "$global_doc")
+  if [ "$global_size" -gt 14336 ]; then
+    echo "⚠ $global_doc が14KBを超過（${global_size} bytes）。ルール圧縮を検討してください。" >&2
+  fi
+done
+
 echo "✓ インストール完了: $CLAUDE_CONFIG_DIR"
 echo "  - skills/quorum"
 echo "  - skills/quorum/IMPROVEMENTS.md -> $SRC_DIR/IMPROVEMENTS.md (symlink)"
+echo "  - $CODEX_HOME/skills/quorum（Codex版）"
+echo "  - $CODEX_HOME/skills/quorum/IMPROVEMENTS.md -> $SRC_DIR/IMPROVEMENTS.md (symlink)"
 echo "  - commands/quorum.md, commands/quorum-opus.md"
 echo "  - $BIN_DIR/quorum-shell（ランチャー）"
 echo "  - CLAUDE.md の quorum-triage ブロック（常時トリアージ規則）"
+echo "  - $CODEX_GLOBAL_MD の quorum-triage ブロック（T1 → \$quorum 連携）"
 echo "  - settings.json の env マージ（rules/settings-env.json の未設定キーのみ）"
 echo ""
-echo "Claude Code を再起動するか /reload-skills を実行してください。"
+echo "Claude Code を再起動するか /reload-skills を実行してください。Codexで反映されない場合は再起動してください。"
 case ":$PATH:" in *":$BIN_DIR:"*) : ;; *) echo "※ $BIN_DIR が PATH に無いようです。追加してください。" ;; esac

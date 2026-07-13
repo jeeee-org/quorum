@@ -51,6 +51,19 @@ t "--raw は distinct のみ（バックフィルなし）" \
   "$(printf 'opus\ncodex\ngrok')" \
   "$(bash "$TMP/raw/detect_panel.sh" --raw)"
 
+mk_env "$TMP/codex" codex:0 grok:0
+t "Codexホストは外部codexを除外" \
+  "$(printf 'codex-native\ngrok')" \
+  "$(QUORUM_HOST=codex bash "$TMP/codex/detect_panel.sh" --raw)"
+
+mk_env "$TMP/codex-fill"
+t "Codexホストはcodex-nativeで4枠に補完" \
+  "$(printf 'codex-native\ncodex-native\ncodex-native\ncodex-native')" \
+  "$(bash "$TMP/codex-fill/detect_panel.sh" --host codex)"
+
+QUORUM_HOST=invalid bash "$TMP/codex-fill/detect_panel.sh" >/dev/null 2>&1
+t "不明なホストはexit 2" "2" "$?"
+
 mk_env "$TMP/size"
 t "QUORUM_PANEL_SIZE=6 で opus×6" \
   "$(printf 'opus\nopus\nopus\nopus\nopus\nopus')" \
