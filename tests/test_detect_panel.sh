@@ -74,6 +74,27 @@ t "QUORUM_PANEL_SIZE=6 で opus×6" \
   "$(printf 'opus\nopus\nopus\nopus\nopus\nopus')" \
   "$(QUORUM_PANEL_SIZE=6 bash "$TMP/size/detect_panel.sh")"
 
+# QUORUM_NATIVE（ネイティブ枠の fable 差し替え）と補完チェーン
+mk_env "$TMP/fable"
+t "QUORUM_NATIVE=fable でも補完は opus（fable を増殖させない）" \
+  "$(printf 'fable\nopus\nopus')" \
+  "$(QUORUM_NATIVE=fable bash "$TMP/fable/detect_panel.sh")"
+
+mk_env "$TMP/fable-full" codex:0 grok:0
+t "QUORUM_NATIVE=fable + 外部全員 → fable/codex/grok" \
+  "$(printf 'fable\ncodex\ngrok')" \
+  "$(QUORUM_NATIVE=fable bash "$TMP/fable-full/detect_panel.sh")"
+
+QUORUM_NATIVE=sonnet bash "$TMP/fable/detect_panel.sh" >/dev/null 2>&1
+t "QUORUM_NATIVE の不正値はexit 2" "2" "$?"
+
+t "QUORUM_PANEL は fable を受ける（Claudeホスト）" \
+  "$(printf 'fable\nopus\ngrok')" \
+  "$(QUORUM_PANEL="fable,opus,grok" bash "$TMP/fable-full/detect_panel.sh")"
+
+QUORUM_HOST=codex QUORUM_PANEL="fable" bash "$TMP/fable-full/detect_panel.sh" >/dev/null 2>&1
+t "Codexホストで fable 指定はexit 2" "2" "$?"
+
 mk_env "$TMP/over" aa:0 bb:0 cc:0
 t "distinct が目標超でもトリムせず全出力（トリムは SKILL 側）" \
   "$(printf 'opus\naa\nbb\ncc')" \

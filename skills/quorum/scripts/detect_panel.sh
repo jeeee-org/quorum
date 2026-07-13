@@ -19,8 +19,12 @@
 #                           使える名前は native（opus / codex-native）と run_<name>.sh。再帰防止
 #                           （Codexホストの外部 codex 禁止）だけは明示指定でも上書きできない。
 #   QUORUM_PANEL_SIZE       目標パネル数（既定 3）。distinct な利用可能バックエンドがこれに満たない
-#                           分をネイティブ実行で補完。distinct がこれを超える場合は全部出力し、トリムは
-#                           SKILL 側の優先順位判断（ドメイン適合 > 多様性 > 同系追加）に委ねる。
+#                           分を補完する。補完枠は opus → codex → grok の優先順で可用なものを選ぶ
+#                           （現行ホストでは Claude=opus / Codex=codex-native に一致。ネイティブ枠を
+#                           fable に差し替えていても補完で fable は増殖させない）。distinct が目標を
+#                           超える場合は全部出力し、トリムは SKILL 側の優先順位判断に委ねる。
+#   QUORUM_NATIVE           Claudeホストのネイティブ枠の差し替え（opus | fable。既定 opus）。
+#                           fable は judge と同格の高コストモデルのため、ユーザーの呼びかけ時のみ使う。
 #   QUORUM_ENABLE_CODEX     codex の可用スイッチ（**既定オン**。空文字で無効化。run_codex.sh 側で判定）。
 #   QUORUM_ENABLE_GEMINI=1  gemini を候補に含める（既定は除外。run_gemini.sh 側のオプトイン）。
 # フラグ:
@@ -44,10 +48,24 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$HOST" in
-  claude) NATIVE="opus" ;;
+  claude)
+    NATIVE="${QUORUM_NATIVE:-opus}"
+    case "$NATIVE" in
+      opus|fable) : ;;
+      *) echo "QUORUM_NATIVE は opus または fable を指定してください: $NATIVE" >&2; exit 2 ;;
+    esac
+    ;;
   codex) NATIVE="codex-native" ;;
   *) echo "QUORUM_HOST は claude または codex を指定してください: $HOST" >&2; exit 2 ;;
 esac
+
+# ホストが直接 spawn できるサブエージェント名（QUORUM_PANEL の検証に使う）
+is_native_name() {
+  case "$HOST:$1" in
+    claude:opus|claude:fable|codex:codex-native) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -58,12 +76,12 @@ if [ -n "${QUORUM_PANEL:-}" ]; then
   panel=()
   for name in "${entries[@]}"; do
     [ -n "$name" ] || continue
-    if [ "$name" = "$NATIVE" ]; then panel+=("$name"); continue; fi
+    if is_native_name "$name"; then panel+=("$name"); continue; fi
     if [ "$HOST" = "codex" ] && [ "$name" = "codex" ]; then
       echo "QUORUM_PANEL: Codexホストでは外部 codex を指定できません（再帰防止）" >&2; exit 2
     fi
     if [ -e "$SCRIPT_DIR/run_$name.sh" ]; then panel+=("$name"); continue; fi
-    echo "QUORUM_PANEL: 不明なバックエンド: $name（$NATIVE または run_$name.sh のある名前を指定）" >&2; exit 2
+    echo "QUORUM_PANEL: 不明なバックエンド: $name（native または run_$name.sh のある名前を指定）" >&2; exit 2
   done
   [ "${#panel[@]}" -gt 0 ] || { echo "QUORUM_PANEL が空です" >&2; exit 2; }
   printf '%s\n' "${panel[@]}"
@@ -93,10 +111,26 @@ if [ "$RAW" = "1" ]; then
   exit 0
 fi
 
-# 目標に満たない分を独立 native 実行で補完（distinct が目標超なら触らない＝SKILL が優先順位でトリム）
+# 欠員の補完枠は opus → codex → grok の優先順で可用なものを選ぶ。
+# Claudeホストは opus（常に可用）、Codexホストは opus が無いので codex-native に落ちる。
+# どれも決まらない場合のみネイティブ枠（QUORUM_NATIVE=fable でも補完で fable は増殖させない）。
+has_external() { local e; for e in ${externals[@]+"${externals[@]}"}; do [ "$e" = "$1" ] && return 0; done; return 1; }
+BACKFILL=""
+if [ "$HOST" = "claude" ]; then
+  BACKFILL="opus"
+elif [ "$HOST" = "codex" ]; then
+  BACKFILL="codex-native"
+elif has_external codex; then
+  BACKFILL="codex"
+elif has_external grok; then
+  BACKFILL="grok"
+fi
+[ -n "$BACKFILL" ] || BACKFILL="$NATIVE"
+
+# 目標に満たない分を補完（distinct が目標超なら触らない＝SKILL が優先順位でトリム）
 TARGET="${QUORUM_PANEL_SIZE:-3}"
 while [ "${#panel[@]}" -lt "$TARGET" ]; do
-  panel+=("$NATIVE")
+  panel+=("$BACKFILL")
 done
 
 printf '%s\n' "${panel[@]}"
