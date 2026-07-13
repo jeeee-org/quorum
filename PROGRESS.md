@@ -6,12 +6,12 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 次にやること
 
-- [ ] Codexの `$quorum` を小さい実問で初回実走し、native fan-out・runs保存・judge出力を確認する
 - [ ] gemini/curl経路の実キーE2EとGROK_MODEL既定値を確認する
 - [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
 
 ## 完了
 
+- 2026-07-13: Codex版 `$quorum` を設計レビューで初実走し、native fan-out・runs保存・judge出力を確認（Grokの実質回答なしをdropped化） → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-13: 既定パネルを3枠 opus/codex/grok に変更（codex 既定参加へ反転）＋ `QUORUM_PANEL` 明示増員を追加、テスト53件 → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-13: Codex版 `$quorum`、T1連携、再帰防止、両環境インストールと45件のAPI不要テストを実装 → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-10: codex パネリストを GPT-5.6 Sol に明示固定（`-m gpt-5.6-sol`）。GPT-5.6 一般公開（07-09）＋codex CLI 0.144.1 更新に追随。config 依存の暗黙 pin（未指定だと 0.144 既定=gpt-5.3-codex に化ける）を排除 → [checkpoint](docs/checkpoints/2026-07-10.md)
