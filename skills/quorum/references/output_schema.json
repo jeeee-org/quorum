@@ -11,7 +11,7 @@
       "type": "object",
       "required": ["used"],
       "properties": {
-        "used": { "type": "array", "items": { "type": "string" }, "description": "実際に使ったパネリスト（例 opus, codex-native, grok）" },
+        "used": { "type": "array", "items": { "type": "string" }, "description": "実際に使ったパネリスト（例 opus, codex-native, claude, grok）" },
         "dropped": {
           "type": "array",
           "items": {

@@ -61,6 +61,14 @@ t "Codexホストは外部codexを除外" \
   "$(printf 'codex-native\ngrok')" \
   "$(QUORUM_HOST=codex bash "$TMP/codex/detect_panel.sh" --raw)"
 
+mk_env "$TMP/symmetric" claude:0 codex:0 grok:0
+t "Claudeホストは外部claudeを除外して opus/codex/grok" \
+  "$(printf 'opus\ncodex\ngrok')" \
+  "$(QUORUM_HOST=claude bash "$TMP/symmetric/detect_panel.sh")"
+t "Codexホストは外部codexを除外して codex-native/claude/grok" \
+  "$(printf 'codex-native\nclaude\ngrok')" \
+  "$(QUORUM_HOST=codex bash "$TMP/symmetric/detect_panel.sh")"
+
 mk_env "$TMP/codex-fill"
 t "Codexホストはcodex-nativeで3枠に補完" \
   "$(printf 'codex-native\ncodex-native\ncodex-native')" \
@@ -133,6 +141,10 @@ t "QUORUM_PANEL の不明なバックエンドはexit 2" "2" "$?"
 mk_env "$TMP/explicit-codex" codex:0 grok:0
 QUORUM_HOST=codex QUORUM_PANEL="codex,grok" bash "$TMP/explicit-codex/detect_panel.sh" >/dev/null 2>&1
 t "QUORUM_PANEL でもCodexホストの外部codexはexit 2（再帰防止）" "2" "$?"
+
+mk_env "$TMP/explicit-claude" claude:0 grok:0
+QUORUM_HOST=claude QUORUM_PANEL="claude,grok" bash "$TMP/explicit-claude/detect_panel.sh" >/dev/null 2>&1
+t "QUORUM_PANEL でもClaudeホストの外部claudeはexit 2（再帰防止）" "2" "$?"
 
 t "QUORUM_PANEL でcodex-nativeの増員はできる" \
   "$(printf 'codex-native\ncodex-native\ngrok')" \

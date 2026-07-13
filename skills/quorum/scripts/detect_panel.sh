@@ -6,8 +6,8 @@
 #   - `run_<name>.sh`（引数なし）… プロンプトを stdin で受け、回答を stdout へ
 # 新しいモデルを足したい時は、この規約に従う run_<name>.sh を置くだけでよい。
 # ネイティブ枠はスクリプトではなく、ホストのサブエージェント機構で spawn する。
-#   QUORUM_HOST=claude（既定）: opus
-#   QUORUM_HOST=codex          : codex-native（外部 run_codex.sh は再帰防止のため除外）
+#   QUORUM_HOST=claude（既定）: opus（外部 run_claude.sh は除外）
+#   QUORUM_HOST=codex          : codex-native（外部 run_codex.sh は除外）
 #
 # 出力: パネリストを1行ずつ（**multiset**。同じ名前が複数行 = その回数だけ独立実行する）。
 #   Claudeホストは opus、Codexホストは codex-native をネイティブ枠にし、使えない枠も同じ
@@ -18,11 +18,10 @@
 #                           受ける。例 "opus,opus,codex,grok"）。指定時は検出・--check・補完を全部
 #                           飛ばしてそのまま出力する（増員・固定用）。使える名前は native
 #                           （opus / fable / codex-native）と run_<name>.sh。再帰防止
-#                           （Codexホストの外部 codex 禁止）だけは明示指定でも上書きできない。
+#                           （現在ホストと同名の外部backend禁止）だけは明示指定でも上書きできない。
 #   QUORUM_PANEL_SIZE       目標パネル数（既定 3）。distinct な利用可能バックエンドがこれに満たない
-#                           分を補完する。補完枠は opus → codex → grok の優先順で可用なものを選ぶ
-#                           （現行ホストでは Claude=opus / Codex=codex-native に一致。ネイティブ枠を
-#                           fable に差し替えていても補完で fable は増殖させない）。distinct が目標を
+#                           分をホストのネイティブ実行で補完する（Claude=opus / Codex=codex-native）。
+#                           QUORUM_NATIVE=fable でも補完で fable は増殖させない。distinct が目標を
 #                           超える場合は全部出力し、トリムは SKILL 側の優先順位判断に委ねる。
 #   QUORUM_NATIVE           Claudeホストのネイティブ枠の差し替え（opus | fable。既定 opus）。
 #                           fable は judge と同格の高コストモデルのため、ユーザーの呼びかけ時のみ使う。
@@ -79,8 +78,8 @@ if [ -n "${QUORUM_PANEL:-}" ]; then
   for name in "${entries[@]}"; do
     [ -n "$name" ] || continue
     if is_native_name "$name"; then panel+=("$name"); continue; fi
-    if [ "$HOST" = "codex" ] && [ "$name" = "codex" ]; then
-      echo "QUORUM_PANEL: Codexホストでは外部 codex を指定できません（再帰防止）" >&2; exit 2
+    if [ "$name" = "$HOST" ]; then
+      echo "QUORUM_PANEL: $HOST ホストでは外部 $name を指定できません（再帰防止）" >&2; exit 2
     fi
     if [ -e "$SCRIPT_DIR/run_$name.sh" ]; then panel+=("$name"); continue; fi
     echo "QUORUM_PANEL: 不明なバックエンド: $name（native または run_$name.sh のある名前を指定）" >&2; exit 2
@@ -95,8 +94,8 @@ externals=()
 for s in "$SCRIPT_DIR"/run_*.sh; do
   [ -e "$s" ] || continue
   name="$(basename "$s")"; name="${name#run_}"; name="${name%.sh}"
-  # Codexホストではネイティブ・サブエージェントを使う。外部Codexを再起動しない。
-  [ "$HOST" = "codex" ] && [ "$name" = "codex" ] && continue
+  # 現在ホストと同名の外部CLIは再起動しない。ネイティブ・サブエージェントを使う。
+  [ "$name" = "$HOST" ] && continue
   if bash "$s" --check >/dev/null 2>&1; then
     externals+=("$name")
   fi
@@ -113,21 +112,12 @@ if [ "$RAW" = "1" ]; then
   exit 0
 fi
 
-# 欠員の補完枠は opus → codex → grok の優先順で可用なものを選ぶ。
-# Claudeホストは opus（常に可用）、Codexホストは opus が無いので codex-native に落ちる。
-# どれも決まらない場合のみネイティブ枠（QUORUM_NATIVE=fable でも補完で fable は増殖させない）。
-has_external() { local e; for e in ${externals[@]+"${externals[@]}"}; do [ "$e" = "$1" ] && return 0; done; return 1; }
-BACKFILL=""
-if [ "$HOST" = "claude" ]; then
-  BACKFILL="opus"
-elif [ "$HOST" = "codex" ]; then
-  BACKFILL="codex-native"
-elif has_external codex; then
-  BACKFILL="codex"
-elif has_external grok; then
-  BACKFILL="grok"
-fi
-[ -n "$BACKFILL" ] || BACKFILL="$NATIVE"
+# 欠員はホストの安価なネイティブ枠で補完する。
+# QUORUM_NATIVE=fable は明示された1枠だけに使い、補完では opus を使う。
+case "$HOST" in
+  claude) BACKFILL="opus" ;;
+  codex) BACKFILL="codex-native" ;;
+esac
 
 # 目標に満たない分を補完（distinct が目標超なら触らない＝SKILL が優先順位でトリム）
 TARGET="${QUORUM_PANEL_SIZE:-3}"

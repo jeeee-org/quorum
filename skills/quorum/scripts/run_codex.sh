@@ -4,7 +4,8 @@
 #
 # 認証: codex に ChatGPT アカウントでログイン済みならサブスク枠で動く。
 #       APIキー（OPENAI_API_KEY）でも可だがその場合は従量課金。
-# 検証: codex-cli 0.144.1 で動作確認。-o で最終回答のみ取得。
+# 検証: codex-cli 0.144.1、現行の --ephemeral / --ignore-user-config / stdin / -o 経路を
+#       2026-07-13のClaude版quorum実走でE2E確認済み。
 set -euo pipefail
 
 # 可用性の自己申告（detect_panel.sh から呼ばれる）

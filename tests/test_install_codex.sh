@@ -21,6 +21,7 @@ t "Codex版SKILL.mdを配置" "$(grep -q 'codex-native' "$CODEX/skills/quorum/SK
 t "Claude固有のSKILL.mdではない" "$(! grep -q 'model.*opus' "$CODEX/skills/quorum/SKILL.md"; echo $?)"
 t "共有referencesを配置" "$([ -f "$CODEX/skills/quorum/references/judge_rubric.md" ]; echo $?)"
 t "共有scriptsを配置" "$([ -x "$CODEX/skills/quorum/scripts/detect_panel.sh" ]; echo $?)"
+t "外部Claude runnerを配置" "$([ -x "$CODEX/skills/quorum/scripts/run_claude.sh" ]; echo $?)"
 t "UIメタデータを配置" "$(grep -q 'default_prompt.*\$quorum' "$CODEX/skills/quorum/agents/openai.yaml"; echo $?)"
 t "IMPROVEMENTS.mdは正本へのsymlink" "$([ "$(readlink "$CODEX/skills/quorum/IMPROVEMENTS.md")" = "$REPO/IMPROVEMENTS.md" ]; echo $?)"
 t "CodexルールがT1をquorumへ接続" "$(grep -q 'T1.*\$quorum' "$CODEX/AGENTS.md"; echo $?)"
