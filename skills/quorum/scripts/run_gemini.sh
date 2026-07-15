@@ -34,6 +34,15 @@ fi
 MODEL="${GEMINI_MODEL:-gemini-2.5-flash}"
 PROMPT="$(cat)"
 
+# パネリスト専用ガードを固定前置する（再帰 fan-out・collab 呼び出し・メタ応答の系統的
+# failure mode への全外部 run_*.sh 共通施策。正本: panelist_guard.txt）。
+GUARD_FILE="$(cd "$(dirname "$0")" && pwd)/panelist_guard.txt"
+if [ -f "$GUARD_FILE" ]; then
+  PROMPT="$(cat "$GUARD_FILE")
+
+$PROMPT"
+fi
+
 # コスト/時間ガード: QUORUM_TIMEOUT 秒で打ち切り（timeout が無ければ無制限）
 TO=""
 command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"

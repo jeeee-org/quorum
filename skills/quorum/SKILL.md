@@ -51,6 +51,8 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 - `opus` / `fable` パネリストは Task でサブエージェントとして並列起動（model をその名前で明示指定）。各自に web 検索と bash を使って独立に調べさせる。fable 行は spawn 前の宣言と fable_calls.log 追記を忘れない（step 1）。
 - 非 opus の各バックエンド `<name>` は Bash で `scripts/run_<name>.sh` を実行し、標準出力（回答全文）を回収する。プロンプトは stdin で渡す：
   - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/quorum/scripts/run_<name>.sh | tee "$RUN_DIR/answer_<label>.md"`
+  - 外部 `run_*.sh` は**パネリスト専用ガード**（単一回答者・quorum再実行/fan-out/サブエージェント/collab禁止・メタ発言禁止。正本 `scripts/panelist_guard.txt`）をプロンプト先頭に自動前置する。エージェント型CLIの再帰 fan-out・「これから確認します」型メタ応答への共通対策で、SKILL 側での付与は不要。`prompt.md` には元の `$PROMPT` を保存する。
+- **回収後の軽量検査（監査記録・自動棄却しない）**：外部バックエンドの各回答は保存後に `bash ~/.claude/skills/quorum/scripts/check_answer.sh "$RUN_DIR/answer_<label>.md"` に通す。`invalid_response:<reason>`（空・極端な短文）が出たら `$RUN_DIR/checks.txt` に `<label>\t<verdict>` を追記し、judge はその回答を**実質回答なしの疑い**として精査する——実質回答があるなら採用理由を、無いなら dropped 判定を監査証跡に明記する。**exit 0・非空でも成功と見なさない**（エージェント型CLIは途中報告だけで正常終了し得る）。※現段階は監査記録のみ。誤棄却が無いことを確認できたら run 側の最小バイト数ゲートへ格上げする（IMPROVEMENTS 2026-07-13）。
 - パネリストどうしの中間結果は**互いに見せない**。
 
 ### 3. judge（突き合わせ）
