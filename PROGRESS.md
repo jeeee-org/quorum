@@ -6,12 +6,14 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 次にやること
 
-- [ ] grok の「途中報告のみ exit 0」対策（実質回答なし検知。IMPROVEMENTS 2026-07-13）
+- [ ] grok の「途中報告のみ exit 0」対策（実質回答なし検知。監査記録→最小バイト数ゲートの順、巨大pack時の自動降格閾値も。IMPROVEMENTS 2026-07-13）
+- [ ] codex exec の collab ハング対策（重いタスクで `collab spawn failed`→タイムアウト。「単一パス・collab不可」ヘッダ前置 or 無効化フラグ調査。IMPROVEMENTS 2026-07-13）
 - [ ] gemini/curl経路の実キーE2EとGROK_MODEL既定値を確認する
 - [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
 
 ## 完了
 
+- 2026-07-15: 別PC（push不可）で追記された IMPROVEMENTS 2件を当PCへ取り込み。grok巨大pack失敗は既存の「exit 0・実質回答なし」項へ統合、codex collabハングは新規項として維持。実装は未着手（上記2件を「次にやること」へ登録）
 - 2026-07-13: Codex既定3枠を `codex-native/claude/grok` の3ベンダーへ対称化し、安全な外部Claude runner・課金ガード・レビュー残件の文書修正を実装、テスト83件＋実機E2E → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-13: quorumレビュー推奨修正を適用（`0`/`false`無効化・明示パネル全滅時フロア規定・区切り正規化・サイズ検証）、テスト68件 → [checkpoint](docs/checkpoints/2026-07-13.md)
 - 2026-07-13: 欠員補完を opus→codex→grok の優先順に一般化＋`QUORUM_NATIVE=fable`（呼びかけ時のみ）を追加、テスト58件。Claude版 `/quorum` も初実走（grok は2回連続実質回答なしで dropped） → [checkpoint](docs/checkpoints/2026-07-13.md)
