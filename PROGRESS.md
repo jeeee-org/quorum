@@ -11,6 +11,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 - [ ] gemini/curl経路の実キーE2Eを確認する
 - [ ] gemini APIキーをStandard key→Authorization keyへ移行する（Google公式が2026年9月にStandard key全般を拒否予定と告知。`GEMINI_API_KEY`/`GOOGLE_API_KEY`の環境変数名は不変だが保存済みキー種別の確認が必要。quorumの実装調査は2026-07-15）
 - [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
+- [ ] **Gemini 3.5 Pro を quorum で試す（2026-07-17 リリース予定以降）**: 課金アカウントに支出上限を設定 → 課金キーで `GEMINI_MODEL=<3.5-pro の正式ID>` を generativelanguage API で実キーE2E → 精度/コストを見て既定 `gemini-2.5-flash` からの昇格可否を判断。無料枠キーでは 2.5-pro 同様 `limit:0` になる想定（課金必須）。agy 経路は #78/#76 未解決のため引き続き見送り
 
 ## 完了
 
