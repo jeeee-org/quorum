@@ -19,14 +19,14 @@ CODEX="$TMP/codex"
 # 1) settings.json が無い → 作成され env が入る
 CFG1="$TMP/cfg1"; mkdir -p "$CFG1"
 CLAUDE_CONFIG_DIR="$CFG1" CODEX_HOME="$CODEX" BIN_DIR="$TMP/bin" bash "$REPO/install.sh" >/dev/null 2>&1
-t "settings.json 新規作成で env が入る" "$([ "$(jget "$CFG1/settings.json" '["env"]["QUORUM_ENABLE_CODEX"]')" = "1" ]; echo $?)"
+t "settings.json 新規作成で env が入る" "$([ "$(jget "$CFG1/settings.json" '["env"]["QUORUM_ENABLE_CODEX"]')" = "0" ]; echo $?)"
 
 # 2) 既存の設定キーが保持される
 CFG2="$TMP/cfg2"; mkdir -p "$CFG2"
 printf '{\n  "model": "opus",\n  "effortLevel": "high"\n}\n' > "$CFG2/settings.json"
 CLAUDE_CONFIG_DIR="$CFG2" CODEX_HOME="$CODEX" BIN_DIR="$TMP/bin" bash "$REPO/install.sh" >/dev/null 2>&1
 t "既存キー model が保持される" "$([ "$(jget "$CFG2/settings.json" '["model"]')" = "opus" ]; echo $?)"
-t "env が追加される" "$([ "$(jget "$CFG2/settings.json" '["env"]["QUORUM_ENABLE_CODEX"]')" = "1" ]; echo $?)"
+t "env が追加される" "$([ "$(jget "$CFG2/settings.json" '["env"]["QUORUM_ENABLE_CODEX"]')" = "0" ]; echo $?)"
 
 # 3) ユーザーが明示した値（無効化の空文字）は上書きしない
 CFG3="$TMP/cfg3"; mkdir -p "$CFG3"

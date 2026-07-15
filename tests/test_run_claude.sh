@@ -29,16 +29,18 @@ printf 'mock claude answer\n'
 SH
 chmod +x "$MOCK_BIN/claude"
 
+env -u ANTHROPIC_API_KEY QUORUM_ENABLE_CLAUDE=1 PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
+t "--check は opt-in(1)+OAuth想定で有効" "$?"
 env -u QUORUM_ENABLE_CLAUDE -u ANTHROPIC_API_KEY PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
-t "--check はOAuth想定で既定オン" "$?"
+t "--check は未設定で無効（既定オフ）" "$([ "$?" != "0" ]; echo $?)"
 QUORUM_ENABLE_CLAUDE=0 PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
 t "--check は0で無効" "$([ "$?" != "0" ]; echo $?)"
-ANTHROPIC_API_KEY=test PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
+QUORUM_ENABLE_CLAUDE=1 ANTHROPIC_API_KEY=test PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
 t "APIキー環境は明示許可なしで無効" "$([ "$?" != "0" ]; echo $?)"
-ANTHROPIC_API_KEY=test QUORUM_ALLOW_CLAUDE_API=1 PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
+QUORUM_ENABLE_CLAUDE=1 ANTHROPIC_API_KEY=test QUORUM_ALLOW_CLAUDE_API=1 PATH="$MOCK_BIN:$PATH" bash "$RUN" --check
 t "APIキー環境も明示許可なら有効" "$?"
 
-output="$(printf 'same prompt' | env -u ANTHROPIC_API_KEY PATH="$MOCK_BIN:$PATH" MOCK_ARGS="$ARGS" MOCK_STDIN="$STDIN" MOCK_PWD="$PWD_OUT" bash "$RUN")"
+output="$(printf 'same prompt' | env -u ANTHROPIC_API_KEY QUORUM_ENABLE_CLAUDE=1 PATH="$MOCK_BIN:$PATH" MOCK_ARGS="$ARGS" MOCK_STDIN="$STDIN" MOCK_PWD="$PWD_OUT" bash "$RUN")"
 t "最終回答をstdoutへ返す" "$([ "$output" = "mock claude answer" ]; echo $?)"
 t "プロンプトをstdinで渡す" "$([ "$(cat "$STDIN")" = "same prompt" ]; echo $?)"
 t "safe-modeを指定" "$(grep -qx -- '--safe-mode' "$ARGS"; echo $?)"

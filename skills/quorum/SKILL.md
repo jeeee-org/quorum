@@ -20,7 +20,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 ### 0. コスト/ステークス・ガード（fan-out 前に必ず）
 - **ステークス判定**: 問いが低リスク／単純なら、**融合せず単一モデルで答える**（または `/quorum-opus` を案内）。融合は高ステークス・複雑な問い限定。コストは概ね**パネリスト数 × トークン**。
 - **問いの型で使い分ける**: **推論の深さ**が支配的な問い（数学・設計の一貫性・単一文書の精読）は、フルパネルよりセッションモデル単発（または `/quorum-opus`）が有利なことが多い——深さは judge 側のモデルが既に持っている。フルパネルが効くのは**事実の争い・情報の広さ・盲点リスク**が支配的な問い（技術選定・障害の根因・相場観・「全員が同じ場所で転ぶ」のが怖い判断）。迷ったら「異種ベンダーの視点が結論を動かし得るか？」で判定する。
-- **目標パネル数**: `QUORUM_PANEL_SIZE`（既定 3）。利用可能なら既定パネルは **opus / codex / grok** の3枠（gemini は既定で外し、codex は空文字か `0`/`false` でオプトアウト）。distinct なbackendで足りない枠はホストの独立opusで補完する。distinct な利用可能バックエンドが目標を**超える**場合のみトリムし、**無音で切り捨てない** — 落としたバックエンドを必ず明示する。トリム優先順位は「設問ドメイン適合 > 多様性（別系統モデル）> 同系の追加実行（=補完分）」。
+- **目標パネル数**: `QUORUM_PANEL_SIZE`（既定 3）。外部バックエンド（codex/grok/gemini）は**すべて既定オフ（opt-in）**なので、何も有効化していないPCの既定パネルは **opus×3**。`QUORUM_ENABLE_CODEX=1`・`QUORUM_ENABLE_GROK=1` を立てたPCでは、利用可能なら **opus / codex / grok** の3枠になる。distinct なbackendで足りない枠はホストの独立opusで補完する。distinct な利用可能バックエンドが目標を**超える**場合のみトリムし、**無音で切り捨てない** — 落としたバックエンドを必ず明示する。トリム優先順位は「設問ドメイン適合 > 多様性（別系統モデル）> 同系の追加実行（=補完分）」。
 - **時間上限**: 各外部パネリストは `QUORUM_TIMEOUT` 秒（既定 300）で自動打ち切り（run スクリプトに内蔵）。打ち切られたパネリストは欠席扱いで続行。
 
 ### 1. パネルを決める
@@ -37,9 +37,9 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 |---|---|---|
 | `opus` | Claude Opus | Task でサブエージェントを spawn（**model=opus 明示指定**・web検索・bash 込み）。スクリプトではなく特別扱い |
 | `fable` | Claude Fable | opus と同じく Task で spawn（**model=fable 明示指定**）。**ユーザーの呼びかけ時のみ**・宣言＋fable_calls.log 追記が必須 |
-| `codex` | GPT-5.6 Sol | `scripts/run_codex.sh` に プロンプトを stdin（`-m gpt-5.6-sol` 固定・既定参加。`QUORUM_ENABLE_CODEX` を空文字/`0`/`false` にすると除外） |
-| `gemini` | Gemini | `scripts/run_gemini.sh`（既定除外・`QUORUM_ENABLE_GEMINI=1` で可用） |
-| `grok` | Grok (xAI) | `scripts/run_grok.sh`（grok CLI=サブスク枠 or `XAI_API_KEY`） |
+| `codex` | GPT-5.6 Sol | `scripts/run_codex.sh` に プロンプトを stdin（`-m gpt-5.6-sol` 固定・**既定オフ**。`QUORUM_ENABLE_CODEX=1` で参加） |
+| `gemini` | Gemini | `scripts/run_gemini.sh`（**既定オフ**・`QUORUM_ENABLE_GEMINI=1` で参加） |
+| `grok` | Grok (xAI) | `scripts/run_grok.sh`（**既定オフ**・`QUORUM_ENABLE_GROK=1` で参加。grok CLI=サブスク枠 or `XAI_API_KEY`） |
 
 新しいモデルを足すには、規約に従う `run_<name>.sh`（`--check` で可用判定＋stdin→stdout）を置くだけ。detect も fan-out も無改修で対応する。
 

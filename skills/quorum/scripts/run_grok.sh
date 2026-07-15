@@ -17,7 +17,12 @@ set -euo pipefail
 export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
 
 # 可用性の自己申告: grok CLI があるか、または XAI_API_KEY+curl があれば可用。
+# grok は**既定でオフ**（未設定=不参加。run_codex.sh と対称）。使うPCでは QUORUM_ENABLE_GROK を
+# 1/true/yes にして opt-in する。巨大 pack で不安定なPCは 0 のままにして codex だけ参加、も可能。
 if [ "${1:-}" = "--check" ]; then
+  case "${QUORUM_ENABLE_GROK:-}" in
+    ''|0|false|no) exit 1 ;;
+  esac
   command -v grok >/dev/null 2>&1 && exit 0
   { [ -n "${XAI_API_KEY:-}" ] && command -v curl >/dev/null 2>&1; } && exit 0
   exit 1

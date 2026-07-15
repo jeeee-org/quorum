@@ -25,8 +25,11 @@
 #                           超える場合は全部出力し、トリムは SKILL 側の優先順位判断に委ねる。
 #   QUORUM_NATIVE           Claudeホストのネイティブ枠の差し替え（opus | fable。既定 opus）。
 #                           fable は judge と同格の高コストモデルのため、ユーザーの呼びかけ時のみ使う。
-#   QUORUM_ENABLE_CODEX     codex の可用スイッチ（**既定オン**。空文字・0・false で無効化。run_codex.sh 側で判定）。
-#   QUORUM_ENABLE_GEMINI=1  gemini を候補に含める（既定は除外。0・false は無効扱い。run_gemini.sh 側のオプトイン）。
+# backend の参加スイッチは**3つとも既定オフ（opt-in）**。何も設定しなければ外部ゼロ →
+# ネイティブ枠で埋まり **opus×3**（Codexホストは codex-native×3）になる。使うPCだけ 1 にする。
+#   QUORUM_ENABLE_CODEX=1   codex を候補に含める（既定オフ。空文字・0・false・no は無効。run_codex.sh 側で判定）。
+#   QUORUM_ENABLE_GROK=1    grok を候補に含める（既定オフ。空文字・0・false・no は無効。run_grok.sh 側で判定）。
+#   QUORUM_ENABLE_GEMINI=1  gemini を候補に含める（既定オフ。0・false は無効。run_gemini.sh 側のオプトイン）。
 # フラグ:
 #   --raw  補完せず「利用可能な distinct バックエンド」だけを出力（デバッグ/テスト用）。
 set -euo pipefail

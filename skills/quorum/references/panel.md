@@ -12,7 +12,7 @@
 
 ## 欠けた枠はホストのネイティブ実行で補完する（バックフィル）
 
-この性質を使い、**目標パネル数（既定3）を、まず利用可能な異種backend、足りなければホストのネイティブ実行で埋める**。Claude Codeホストの既定は **opus / codex / grok**、Codexホストの既定は **codex-native / claude / grok**。現在ホストと同名の外部runnerは除外し、CLIのネストとquorum再帰を防ぐ。別モデルが入る枠ほど多様性は高いが、同族補完でも偶発的な取りこぼしを減らせる。補完は `detect_panel.sh` が `QUORUM_HOST` と `QUORUM_PANEL_SIZE` に従って行い、特定バックエンドの増員・固定は `QUORUM_PANEL` の明示指定で行う。
+この性質を使い、**目標パネル数（既定3）を、まず opt-in された利用可能な異種backend、足りなければホストのネイティブ実行で埋める**。外部backend（codex/grok/gemini/外部claude）は**すべて既定オフ**なので、何も有効化しなければ Claude Codeホストは **opus×3**、Codexホストは **codex-native×3**。`QUORUM_ENABLE_*=1` で有効化すると、Claude=**opus / codex / grok**、Codex=**codex-native / claude / grok** の3ベンダー幅になる。現在ホストと同名の外部runnerは除外し、CLIのネストとquorum再帰を防ぐ。別モデルが入る枠ほど多様性は高いが、同族補完でも偶発的な取りこぼしを減らせる。補完は `detect_panel.sh` が `QUORUM_HOST` と `QUORUM_PANEL_SIZE` に従って行い、特定バックエンドの増員・固定は `QUORUM_PANEL` の明示指定で行う。
 
 **opus 枠の fable 差し替え（`QUORUM_NATIVE=fable`）はユーザーの呼びかけ時のみ**。judge と同格のモデルをパネル（幅）に使うのは「深さは judge・幅は安価なモデル」の基本配置に反し費用対効果が悪いが、最重要の1問で幅の質も上げたい局面のための明示オプション。補完で fable を増殖させることはない（補完チェーンに fable は入れない）。
 

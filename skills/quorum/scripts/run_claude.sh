@@ -11,7 +11,8 @@
 set -euo pipefail
 
 enabled() {
-  case "${QUORUM_ENABLE_CLAUDE-1}" in
+  # 既定オフ（opt-in）。Codexホストで外部Claudeをパネルに入れるPCだけ QUORUM_ENABLE_CLAUDE=1 にする。
+  case "${QUORUM_ENABLE_CLAUDE:-}" in
     ''|0|false|no) return 1 ;;
     *) return 0 ;;
   esac

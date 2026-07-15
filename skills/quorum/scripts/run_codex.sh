@@ -9,10 +9,11 @@
 set -euo pipefail
 
 # 可用性の自己申告（detect_panel.sh から呼ばれる）
-# codex は**既定で参加**（未設定=オン）。従量課金を抑えたいPCでは QUORUM_ENABLE_CODEX に
-# 空文字か 0/false を置いて無効化する（settings.json の明示値は install.sh のマージで上書きされない）。
+# codex は**既定でオフ**（未設定=不参加。何も設定しなければパネルは opus×3）。使うPCでは
+# QUORUM_ENABLE_CODEX を 1/true/yes にして opt-in する（settings.json の明示値は
+# install.sh のマージで上書きされない＝PCごとの参加設定はそのPCに残る）。
 if [ "${1:-}" = "--check" ]; then
-  case "${QUORUM_ENABLE_CODEX-1}" in
+  case "${QUORUM_ENABLE_CODEX:-}" in
     ''|0|false|no) exit 1 ;;
   esac
   command -v codex >/dev/null 2>&1 && exit 0 || exit 1
