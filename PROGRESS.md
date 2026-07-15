@@ -8,12 +8,13 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 - [ ] 実質回答なし検知の第2段: checks.txt の誤棄却ゼロを運用確認後、run 側の最小バイト数ゲート（欠席扱い）へ格上げ。巨大pack時の grok 自動降格閾値・ファイル渡し方式も未着手（IMPROVEMENTS 2026-07-13）
 - [ ] codex CLI の collab 無効化フラグ調査（ガード前置は実装済み。フラグがあれば恒久化。IMPROVEMENTS 2026-07-13）
-- [ ] gemini/curl経路の実キーE2EとGROK_MODEL既定値を確認する
+- [ ] gemini/curl経路の実キーE2Eを確認する
 - [ ] gemini APIキーをStandard key→Authorization keyへ移行する（Google公式が2026年9月にStandard key全般を拒否予定と告知。`GEMINI_API_KEY`/`GOOGLE_API_KEY`の環境変数名は不変だが保存済みキー種別の確認が必要。quorumの実装調査は2026-07-15）
 - [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
 
 ## 完了
 
+- 2026-07-15: GROK_MODEL既定値`grok-4.5`を確認。2026-07-08発表・07-09 GAの現行フラッグシップで、xAI公式のGrok Build CLI既定とも一致（サードパーティ製grok-cliのgrok-code-fast-1既定と誤認しないよう要注意）。grok-5は未提供（トレーニング中）。既定値の変更不要と判定
 - 2026-07-15: IMPROVEMENTS 2件の第1段実装: ①回収後の軽量検査 `check_answer.sh`（invalid_response を checks.txt へ監査記録・自動棄却なし）②パネリスト専用ガード `panelist_guard.txt` を全外部 run_*.sh に固定前置（再帰fan-out/collab/メタ応答対策の共通1施策）。テスト105件パス＋実機grokでガード実効を副次確認 → [checkpoint](docs/checkpoints/2026-07-15.md)
 - 2026-07-15: パネル参加を全外部（codex/grok/gemini/外部claude）**既定オフ（opt-in）**へ統一。既定パネルは opus×3（Codex=codex-native×3）、`QUORUM_ENABLE_*=1` で参加。`QUORUM_ENABLE_GROK` 新設、settings-env は3枠"0"化、このPCは codex/grok=1。テスト全91件パス＋実機で opus×3 / opus・codex・grok を確認（判断は NOTES.md） → [checkpoint](docs/checkpoints/2026-07-15.md)
 - 2026-07-15: 別PC（push不可）で追記された IMPROVEMENTS 2件を当PCへ取り込み。grok巨大pack失敗は既存の「exit 0・実質回答なし」項へ統合、codex collabハングは新規項として維持 → [checkpoint](docs/checkpoints/2026-07-15.md)
