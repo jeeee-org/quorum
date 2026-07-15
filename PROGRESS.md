@@ -9,6 +9,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 - [ ] 実質回答なし検知の第2段: checks.txt の誤棄却ゼロを運用確認後、run 側の最小バイト数ゲート（欠席扱い）へ格上げ。巨大pack時の grok 自動降格閾値・ファイル渡し方式も未着手（IMPROVEMENTS 2026-07-13）
 - [ ] codex CLI の collab 無効化フラグ調査（ガード前置は実装済み。フラグがあれば恒久化。IMPROVEMENTS 2026-07-13）
 - [ ] gemini/curl経路の実キーE2EとGROK_MODEL既定値を確認する
+- [ ] gemini APIキーをStandard key→Authorization keyへ移行する（Google公式が2026年9月にStandard key全般を拒否予定と告知。`GEMINI_API_KEY`/`GOOGLE_API_KEY`の環境変数名は不変だが保存済みキー種別の確認が必要。quorumの実装調査は2026-07-15）
 - [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
 
 ## 完了
