@@ -98,7 +98,7 @@ IMPROVEMENTS.md に書く改善メモの証拠として使える。
 ## インストール
 
 ```bash
-cd ~/Develop/skills/quorum
+cd ~/Develop/quorum
 ./install.sh                 # ~/.claude と $CODEX_HOME の両方へ
 # 別ディレクトリなら:
 # CLAUDE_CONFIG_DIR=/path/.claude CODEX_HOME=/path/.codex ./install.sh
