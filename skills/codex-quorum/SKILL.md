@@ -14,7 +14,7 @@ description: 高ステークスかつ広さ・盲点リスクが支配的な問�
 - ユーザーの明示指定を最優先する。明示的に quorum を要求された場合は、低リスクでも勝手に単発へ落とさない。
 - 自動選択では T1（高ステークス×広さ型）だけに使う。T0 / T2a / CADENCE では実行しない。
 - コストとレイテンシが概ねパネリスト数倍になることを、fan-out 前に短く宣言する。
-- 明示パネルがなければ `QUORUM_HOST=codex bash "$SKILL_DIR/scripts/detect_panel.sh"` を実行する。出力は1行1パネリストの multiset。
+- 明示パネルがなければ `QUORUM_HOST=codex bash "$SKILL_DIR/scripts/detect_panel.sh"` を実行する。出力は1行1パネリストの multiset。stderr に「N 回連続で欠席」の警告が出たらユーザーに伝える（opt-in 済み backend の恒久故障のサイン）。
 - `codex-native` はCodexの直接サブエージェント、その他の `<name>` は `scripts/run_<name>.sh` として扱う。
 - 外部（claude / grok / gemini）は**すべて既定オフ（opt-in）**。何も有効化しなければ既定パネルは `codex-native×3`。`QUORUM_ENABLE_CLAUDE=1`・`QUORUM_ENABLE_GROK=1` を立てたPCでは、利用可能なら `codex-native / claude / grok` の3枠になる。外部Claudeはsafe-mode・ツール無効・空CWDで隔離された `run_claude.sh` を使う。欠員は `codex-native` で補完する。
 - Codexホストでは `run_codex.sh` を絶対に呼ばない。外部Codexのネストと quorum 再帰を避ける（明示パネルでも拒否）。

@@ -6,15 +6,14 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 次にやること
 
-- [ ] 実質回答なし検知の第2段: checks.txt の誤棄却ゼロを運用確認後、run 側の最小バイト数ゲート（欠席扱い）へ格上げ。巨大pack時の grok 自動降格閾値・ファイル渡し方式も未着手（IMPROVEMENTS 2026-07-13）
-- [ ] codex CLI の collab 無効化フラグ調査（ガード前置は実装済み。フラグがあれば恒久化。IMPROVEMENTS 2026-07-13）
+- [ ] 実質回答なし検知の第2段（**データ待ち**）: この clone には checks.txt を持つ run が0件で誤棄却の有無を判断できない。運用が溜まったら `scripts/checks_summary.sh` を実行し、閾値付近に実質回答が無ければ run 側の最小バイト数ゲート（欠席扱い）へ格上げする（IMPROVEMENTS 2026-07-13）
 - [ ] gemini/curl経路の実キーE2Eを確認する
 - [ ] gemini APIキーをStandard key→Authorization keyへ移行する（Google公式が2026年9月にStandard key全般を拒否予定と告知。`GEMINI_API_KEY`/`GOOGLE_API_KEY`の環境変数名は不変だが保存済みキー種別の確認が必要。quorumの実装調査は2026-07-15）
-- [ ] codex連続欠席の警告を実装する（IMPROVEMENTS 2026-07-10）
 - [ ] **Gemini 3.5 Pro を quorum で試す（2026-07-17 リリース予定以降）**: 課金アカウントに支出上限を設定 → 課金キーで `GEMINI_MODEL=<3.5-pro の正式ID>` を generativelanguage API で実キーE2E → 精度/コストを見て既定 `gemini-2.5-flash` からの昇格可否を判断。無料枠キーでは 2.5-pro 同様 `limit:0` になる想定（課金必須）。agy 経路は #78/#76 未解決のため引き続き見送り
 
 ## 完了
 
+- 2026-08-09: 残TODO 3件を処理。①codex の collab を `--disable multi_agent` で恒久無効化（機能フラグを実機特定）②opt-in 済み backend の連続欠席を stderr へ警告（`--check` に「2=意図的に不参加」を新設して opt-out と区別）③`checks_summary.sh` で誤棄却レビューを1コマンド化。テスト146件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: 取り込んだ改善メモを rubric/packing へ反映。継ぎ目カテゴリ3件追加（仕様内部の整合性・承認権限の射程・構成要素の必要性）＋judge自身が確かめる節、context-packing に「pack は司書の盲点を継承する」節・材料の版/根拠コード欄、mapping.txt に visibility 列、カテゴリ3重複の drift ガードを追加。テスト125件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: grok の大型pack欠席を解消。CLI経路を argv → `--prompt-file` へ（248KB実機E2E）。旧CLIは上限超過をexit 4で明示、`check_answer.sh` は stderr から `argv-too-long` を判定。run_*.sh規約に「promptをargvに展開しない」を明記。テスト121件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: fable の費用表現を「都度課金」→「サブスク枠の使用量」へ是正（SKILL/rules/README。同一プラン上で走る＝別建て請求なし、ただしAPIキー環境は除く）。あわせて dangling だった IMPROVEMENTS.md の symlink を install 再実行で復旧し、届いていなかった改善メモ15件（2026-07-16〜08-09）を正本へ取り込み → [checkpoint](docs/checkpoints/2026-08-09.md)

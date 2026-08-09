@@ -53,8 +53,11 @@ quorum/
 ├── skills/quorum/
 │   ├── SKILL.md                # Claude Code版の台本＋共有資産の正本
 │   ├── scripts/
-│   │   ├── detect_panel.sh     # 利用可能なバックエンドを検出
+│   │   ├── detect_panel.sh     # 利用可能なバックエンドを検出＋連続欠席の警告
 │   │   ├── validate_json.sh    # --output-format json の決定論検証ゲート
+│   │   ├── check_answer.sh     # 回収後の軽量検査（実質回答なしの疑いを監査記録）
+│   │   ├── checks_summary.sh   # 過去 run の checks.txt を横断集計（誤棄却レビュー）
+│   │   ├── panelist_guard.txt  # 全外部 run_*.sh が前置するパネリスト専用ガード（正本）
 │   │   ├── run_claude.sh       # Claude Opus（Codexホスト専用の外部枠）
 │   │   ├── run_codex.sh        # GPT-5.6 Sol（codex CLI）
 │   │   ├── run_gemini.sh       # Gemini（Gemini API 本線 / gemini CLI 補助）
@@ -185,12 +188,18 @@ quorum-shell ~/Develop/foo -- --model opus "まず概要を教えて"   # -- 以
 
 新しいモデルを足すのに detect も SKILL も触らない。`skills/quorum/scripts/run_<name>.sh` を**この規約で**置くだけ：
 
-1. `run_<name>.sh --check` … 使えるなら exit 0、ダメなら非0（CLI/キーの有無などを自己判定）
+1. `run_<name>.sh --check` … **0 = 可用 / 2 = 意図的に不参加（opt-out・未設定・課金ガード） / その他非0 = 参加したいのに使えない**（CLI 未導入・認証切れ・キー無し）。2 を分けるのは、恒久的な故障を「毎回の一時的な欠席」に埋もれさせないため（下記の連続欠席の警告が 2 を数えない）
 2. `run_<name>.sh`（引数なし）… プロンプトを **stdin** で受け、回答全文を **stdout** へ
 3. 任意で `QUORUM_TIMEOUT` を尊重（`command -v timeout` があれば `timeout "${QUORUM_TIMEOUT:-300}"` でラップ）
 4. **プロンプトを argv に展開しない**（stdin か一時ファイル渡しにする）。単一引数長の上限（Linux の `MAX_ARG_STRLEN` ≒ 128KB。`ARG_MAX` 2MB とは別物）を超えると exec が `Argument list too long` で失敗し、**exit 0・空応答**でそのパネリストが無言で欠席する。実装レビュー型の大型 pack では確実に踏む（grok で4回再発 → `--prompt-file` へ移行済み）。argv は実行中 `ps` で全文が見える点でも避ける
 
 `detect_panel.sh` が `run_*.sh` を自動ディスカバリして `--check` で取捨し、fan-out は `<name>` をそのまま使う。
+
+### 連続欠席の警告
+
+参加設定を入れている（opt-in 済みの）backend が `--check` を通らない状態が続くと、`detect_panel.sh` が **stderr に警告**を出す（既定は3回連続。`QUORUM_ABSENCE_WARN` で変更、`0` で無効）。
+
+単発の欠席は無言でネイティブ補完してよいが、認証切れや CLI 更新による**恒久的な故障**が毎回「一時的な欠席」として処理されると、パネルが静かに同族ネイティブ寄りへ退化して異種ベンダー混合の価値が失われる。opt-out（exit 2）は故障ではないので数えない。状態は `~/.local/share/quorum/absence.tsv`（`QUORUM_STATE_DIR` で変更可）。
 
 ## Grok を使うとき
 
@@ -218,6 +227,10 @@ CLI 経路のプロンプトは **`--prompt-file`（一時ファイル渡し）*
 | `QUORUM_PANEL_SIZE` | 3 | 目標パネル数。既定（外部オフ）ではClaudeホストは opus×3、Codexホストは codex-native×3。opt-in した外部で埋め、欠員はホストのネイティブ枠で補完 |
 | `QUORUM_NATIVE` | opus | Claudeホストのネイティブ枠の差し替え（`opus` \| `fable`）。**fable はユーザーの呼びかけ時のみ**（judge と同格でサブスク枠の使用量が大きい。宣言＋`fable_calls.log` 追記が必須）。補完で fable は増殖しない |
 | `QUORUM_TIMEOUT` | 300 | 各外部パネリストの実行時間上限（秒）。run スクリプトに内蔵、超過は欠席扱い |
+| `QUORUM_ABSENCE_WARN` | 3 | opt-in 済みなのに `--check` が通らない状態が何回連続したら stderr へ警告するか。`0` で無効。opt-out（exit 2）は数えない |
+| `QUORUM_STATE_DIR` | `~/.local/share/quorum` | 連続欠席カウンタ（`absence.tsv`）の置き場 |
+| `QUORUM_MIN_ANSWER_BYTES` | 500 | `check_answer.sh` が `too_short` と判定する下限。現状は監査記録のみで自動棄却しない |
+| `QUORUM_MAX_ARGV_BYTES` | 120000 | argv 渡しにフォールバックした時だけ効く上限（`--prompt-file` 非対応の旧 grok CLI 用）。超過は exit 4 |
 | `QUORUM_ENABLE_CLAUDE` | **オフ（未設定=不参加）** | `1`/`true`/`yes` でCodexホストの外部Claudeを参加。Claudeホストでは常に外部Claudeを除外 |
 | `QUORUM_ALLOW_CLAUDE_API` | (未設定) | `ANTHROPIC_API_KEY` 検出時も外部Claudeを許可する明示スイッチ。`1`/`true`/`yes` のみ有効 |
 | `QUORUM_ENABLE_CODEX` | **オフ（未設定=不参加）** | `1`/`true`/`yes` でClaude Codeホストの外部codexを参加。Codexホストでは常に外部codexを除外 |

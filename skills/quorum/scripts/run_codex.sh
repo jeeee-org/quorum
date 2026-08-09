@@ -12,9 +12,13 @@ set -euo pipefail
 # codex は**既定でオフ**（未設定=不参加。何も設定しなければパネルは opus×3）。使うPCでは
 # QUORUM_ENABLE_CODEX を 1/true/yes にして opt-in する（settings.json の明示値は
 # install.sh のマージで上書きされない＝PCごとの参加設定はそのPCに残る）。
+# --check の exit code 規約:
+#   0 = 可用 / 2 = **意図的に不参加**（opt-out・未設定） / その他非0 = 参加したいのに使えない
+# 2 を分けるのは、恒久的な故障（認証切れ・CLI 未導入）を「毎回の一時的欠席」に埋もれさせ
+# ないため。detect_panel.sh は 2 以外の失敗だけを連続欠席として数える（IMPROVEMENTS 2026-07-10）。
 if [ "${1:-}" = "--check" ]; then
   case "${QUORUM_ENABLE_CODEX:-}" in
-    ''|0|false|no) exit 1 ;;
+    ''|0|false|no) exit 2 ;;
   esac
   command -v codex >/dev/null 2>&1 && exit 0 || exit 1
 fi
@@ -39,6 +43,18 @@ fi
 TO=""
 command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"
 
+# collab（サブエージェント）機構をフラグで無効化する。exec + --ephemeral + 空 WORK_DIR では
+# collab が機能しないのにモデルからは使えるように見え、重いタスクほど「監査を3領域に分割」と
+# 宣言して spawn を試み、`collab spawn failed: no thread with id` を繰り返した末に
+# タイムアウトする（IMPROVEMENTS 2026-07-13）。codex-cli 0.144.1 では機能フラグ
+# `multi_agent`（features list で stable/true）がこれに当たり、`--disable multi_agent` で
+# 個別に落とせることを確認した。プロンプト側のパネリスト専用ガードは**残す**——フラグの
+# 名前も存在も CLI のバージョン次第で変わるため、二重の歯止めにする。
+CODEX_FEATURE_ARGS=()
+if codex exec --help 2>/dev/null | grep -q -- '--disable'; then
+  CODEX_FEATURE_ARGS=(--disable multi_agent)
+fi
+
 TMP="$(mktemp)"; ERR="$(mktemp)"
 # 空の作業ディレクトリで実行する。codex exec はエージェント型CLIで CWD のファイルを読めるため、
 # 呼び出し元のリポ等を見せない（パネリストに渡すのは $PROMPT のみ、という設計の強制）。
@@ -53,7 +69,7 @@ cd "$WORK_DIR"
 # --skip-git-repo-check: リポジトリ外でも実行可 / --color never: 整形なし
 # -o: 最終メッセージのみをファイルへ（途中のログを混ぜない）
 # 末尾の `-`: プロンプトを stdin から読む（argv に載せると実行中 ps で全文が見えるため）
-if printf '%s' "$PROMPT" | $TO codex exec -m gpt-5.6-sol --ephemeral --ignore-user-config --skip-git-repo-check --color never -o "$TMP" - >/dev/null 2>"$ERR"; then
+if printf '%s' "$PROMPT" | $TO codex exec -m gpt-5.6-sol --ephemeral --ignore-user-config --skip-git-repo-check --color never "${CODEX_FEATURE_ARGS[@]}" -o "$TMP" - >/dev/null 2>"$ERR"; then
   cat "$TMP"
 else
   echo "[run_codex] codex exec が失敗しました:" >&2

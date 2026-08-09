@@ -23,8 +23,9 @@ gemini_api_key() { printf '%s' "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"; }
 # 可用性の自己申告: QUORUM_ENABLE_GEMINI=1 かつ（APIキー+curl or gemini CLI）。
 # 0/false/no は空文字・未設定と同じく無効扱い（課金スイッチの驚き防止。run_codex.sh と同規約）。
 if [ "${1:-}" = "--check" ]; then
+  # exit code 規約: 0=可用 / 2=意図的に不参加 / その他非0=参加したいのに使えない
   case "${QUORUM_ENABLE_GEMINI:-}" in
-    ''|0|false|no) exit 1 ;;
+    ''|0|false|no) exit 2 ;;
   esac
   { [ -n "$(gemini_api_key)" ] && command -v curl >/dev/null 2>&1; } && exit 0
   command -v gemini >/dev/null 2>&1 && exit 0

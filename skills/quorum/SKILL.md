@@ -31,7 +31,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 - detect の出力行数が `QUORUM_PANEL_SIZE` を超える場合（distinct バックエンドが目標超）だけ、step 0 の優先順位でトリムし**落としたものを明示**する。
 - **対象がリポ内資産に依存する問い（設計・実装レビュー型）では、リポを読める backend を最低1体は必ず含める**（通常は `opus` 枠）。2026-08-03 の実走では、リポを読めた回答だけが「設計文書の記述と実装・実データの食い違い」を出し、pack しか読めない回答だけが「承認の射程を超えた実施順」を出した——**どちらか一方に寄せると片側の欠陥が丸ごと抜ける**。distinct な多様性（別ベンダー）とは別軸の**アクセス権の多様性**として確保する。
 
-**バックエンドは規約ベース（汎用）**。detect_panel.sh は `scripts/run_<name>.sh` を自動ディスカバリし、各スクリプトの `--check`（exit 0=可用）で取捨する。出力された `<name>` ごとに `scripts/run_<name>.sh` を呼べばよい（個別の分岐を SKILL に書かない）。**「使える枠は本物のモデル・足りない枠は opus」**という補完は detect_panel.sh が行うので、SKILL 側は出力を信じて回すだけでよい。
+**バックエンドは規約ベース（汎用）**。detect_panel.sh は `scripts/run_<name>.sh` を自動ディスカバリし、各スクリプトの `--check`（**0=可用 / 2=意図的に不参加 / その他非0=参加したいのに使えない**）で取捨する。**detect が stderr に「N 回連続で欠席」の警告を出したらユーザーに伝える**——opt-in 済みの backend が恒久的に落ちてパネルが静かに同族ネイティブ寄りへ退化しているサイン（既定3回・`QUORUM_ABSENCE_WARN`）。出力された `<name>` ごとに `scripts/run_<name>.sh` を呼べばよい（個別の分岐を SKILL に書かない）。**「使える枠は本物のモデル・足りない枠は opus」**という補完は detect_panel.sh が行うので、SKILL 側は出力を信じて回すだけでよい。
 
 現状検出され得るバックエンド（例）：
 | backend | 実体 | 投げ方 |
@@ -55,7 +55,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
   - 例: `printf '%s' "$PROMPT" | bash ~/.claude/skills/quorum/scripts/run_<name>.sh 2>"$RUN_DIR/answer_<label>.err" | tee "$RUN_DIR/answer_<label>.md"`
   - **stderr も `.err` に落とす**。空応答になった時、原因（argv 上限超過・認証切れ・タイムアウト）は stderr にしか出ない。
   - 外部 `run_*.sh` は**パネリスト専用ガード**（単一回答者・quorum再実行/fan-out/サブエージェント/collab禁止・メタ発言禁止。正本 `scripts/panelist_guard.txt`）をプロンプト先頭に自動前置する。エージェント型CLIの再帰 fan-out・「これから確認します」型メタ応答への共通対策で、SKILL 側での付与は不要。`prompt.md` には元の `$PROMPT` を保存する。
-- **回収後の軽量検査（監査記録・自動棄却しない）**：外部バックエンドの各回答は保存後に `bash ~/.claude/skills/quorum/scripts/check_answer.sh "$RUN_DIR/answer_<label>.md" "$RUN_DIR/answer_<label>.err"` に通す（第2引数の stderr は任意だが、渡すと空応答の原因まで名指しできる）。`invalid_response:<reason>`（空・argv 上限超過・極端な短文）が出たら `$RUN_DIR/checks.txt` に `<label>\t<verdict>` を追記し、judge はその回答を**実質回答なしの疑い**として精査する——実質回答があるなら採用理由を、無いなら dropped 判定を監査証跡に明記する。**exit 0・非空でも成功と見なさない**（エージェント型CLIは途中報告だけで正常終了し得る）。※現段階は監査記録のみ。誤棄却が無いことを確認できたら run 側の最小バイト数ゲートへ格上げする（IMPROVEMENTS 2026-07-13）。
+- **回収後の軽量検査（監査記録・自動棄却しない）**：外部バックエンドの各回答は保存後に `bash ~/.claude/skills/quorum/scripts/check_answer.sh "$RUN_DIR/answer_<label>.md" "$RUN_DIR/answer_<label>.err"` に通す（第2引数の stderr は任意だが、渡すと空応答の原因まで名指しできる）。`invalid_response:<reason>`（空・argv 上限超過・極端な短文）が出たら `$RUN_DIR/checks.txt` に `<label>\t<verdict>` を追記し、judge はその回答を**実質回答なしの疑い**として精査する——実質回答があるなら採用理由を、無いなら dropped 判定を監査証跡に明記する。**exit 0・非空でも成功と見なさない**（エージェント型CLIは途中報告だけで正常終了し得る）。※現段階は監査記録のみ。誤棄却が無いことを確認できたら run 側の最小バイト数ゲートへ格上げする（IMPROVEMENTS 2026-07-13）。格上げ可否の判断材料は `bash ~/.claude/skills/quorum/scripts/checks_summary.sh` で出せる（過去 run の checks.txt を横断集計し、閾値に近い＝誤棄却の疑いが濃い順に並べる）。
 - パネリストどうしの中間結果は**互いに見せない**。
 
 ### 3. judge（突き合わせ）

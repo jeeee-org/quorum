@@ -2,7 +2,7 @@
 # 利用可能なバックエンドを検出し、ホストのネイティブ・サブエージェントで補完したパネルを出力する。
 #
 # 規約: scripts/ 配下の `run_<name>.sh` が1バックエンド。
-#   - `run_<name>.sh --check` … 使えるなら exit 0、使えないなら非0
+#   - `run_<name>.sh --check` … 0=可用 / 2=意図的に不参加（opt-out）/ その他非0=参加したいのに使えない
 #   - `run_<name>.sh`（引数なし）… プロンプトを stdin で受け、回答を stdout へ
 # 新しいモデルを足したい時は、この規約に従う run_<name>.sh を置くだけでよい。
 # ネイティブ枠はスクリプトではなく、ホストのサブエージェント機構で spawn する。
@@ -30,6 +30,10 @@
 #   QUORUM_ENABLE_CODEX=1   codex を候補に含める（既定オフ。空文字・0・false・no は無効。run_codex.sh 側で判定）。
 #   QUORUM_ENABLE_GROK=1    grok を候補に含める（既定オフ。空文字・0・false・no は無効。run_grok.sh 側で判定）。
 #   QUORUM_ENABLE_GEMINI=1  gemini を候補に含める（既定オフ。0・false は無効。run_gemini.sh 側のオプトイン）。
+#   QUORUM_ABSENCE_WARN     opt-in 済みなのに --check が通らない状態が何回連続したら stderr へ
+#                           警告するか（既定 3。0 で無効）。状態は
+#                           $QUORUM_STATE_DIR（既定 ~/.local/share/quorum）/absence.tsv。
+#                           opt-out（exit 2）は故障ではないので数えない。
 # フラグ:
 #   --raw  補完せず「利用可能な distinct バックエンド」だけを出力（デバッグ/テスト用）。
 set -euo pipefail
@@ -93,16 +97,75 @@ if [ -n "${QUORUM_PANEL:-}" ]; then
 fi
 
 # --check を通った distinct な外部バックエンド
+# exit code 規約: 0=可用 / 2=意図的に不参加（opt-out） / その他非0=参加したいのに使えない
 externals=()
+checked_names=()
+checked_codes=()
 for s in "$SCRIPT_DIR"/run_*.sh; do
   [ -e "$s" ] || continue
   name="$(basename "$s")"; name="${name#run_}"; name="${name%.sh}"
   # 現在ホストと同名の外部CLIは再起動しない。ネイティブ・サブエージェントを使う。
   [ "$name" = "$HOST" ] && continue
-  if bash "$s" --check >/dev/null 2>&1; then
+  code=0
+  bash "$s" --check >/dev/null 2>&1 || code=$?
+  checked_names+=("$name")
+  checked_codes+=("$code")
+  if [ "$code" -eq 0 ]; then
     externals+=("$name")
   fi
 done
+
+# 連続欠席の記録と警告（IMPROVEMENTS 2026-07-10）
+#
+# 単発の欠席は無言で補完してよい。問題は**恒久的な故障**（認証切れ・CLI 更新で壊れた等）が
+# 毎回「一時的な欠席」として処理され、パネルが静かに同族ネイティブ寄りへ退化することだった。
+# opt-out（exit 2）は故障ではないので数えず、カウンタも 0 に戻す。
+# 警告は **stderr** に出す——stdout はパネル multiset で、SKILL が1行=1パネリストとして読むため。
+record_absence() {
+  local warn_at="${QUORUM_ABSENCE_WARN:-3}"
+  case "$warn_at" in
+    ''|*[!0-9]*) warn_at=3 ;;
+  esac
+  [ "$warn_at" -gt 0 ] || return 0
+  [ "${#checked_names[@]}" -gt 0 ] || return 0
+
+  local state_dir="${QUORUM_STATE_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/quorum}"
+  local file="$state_dir/absence.tsv"
+  mkdir -p "$state_dir" 2>/dev/null || return 0
+
+  local -A count seen
+  if [ -r "$file" ]; then
+    local n c t
+    while IFS=$'\t' read -r n c t; do
+      [ -n "${n:-}" ] || continue
+      case "${c:-}" in ''|*[!0-9]*) c=0 ;; esac
+      count["$n"]="$c"; seen["$n"]="${t:-未記録}"
+    done < "$file"
+  fi
+
+  local now; now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local i name code
+  for i in "${!checked_names[@]}"; do
+    name="${checked_names[$i]}"; code="${checked_codes[$i]}"
+    case "$code" in
+      0) count["$name"]=0; seen["$name"]="$now" ;;
+      2) count["$name"]=0 ;;   # 意図的に不参加。故障ではないので数えない
+      *)
+        count["$name"]=$(( ${count["$name"]:-0} + 1 ))
+        if [ "${count[$name]}" -ge "$warn_at" ]; then
+          echo "[quorum] 警告: $name が ${count[$name]} 回連続で欠席しています（最後に使えたのは ${seen[$name]:-未記録}）。参加設定は入っているので、CLI の導入・認証（例: \`$name login\`）・APIキーを確認してください。放置するとパネルが静かに同族ネイティブ寄りへ退化します。" >&2
+        fi
+        ;;
+    esac
+  done
+
+  local tmp; tmp="$(mktemp)" || return 0
+  for name in "${!count[@]}"; do
+    printf '%s\t%s\t%s\n' "$name" "${count[$name]}" "${seen[$name]:-未記録}" >> "$tmp"
+  done
+  sort -o "$tmp" "$tmp" && mv "$tmp" "$file" 2>/dev/null || rm -f "$tmp"
+}
+record_absence
 
 # distinct な利用可能パネル = native + externals
 panel=("$NATIVE")

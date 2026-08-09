@@ -30,6 +30,8 @@ mk_env() { # mk_env <dir> [name:check終了コード ...]
 }
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+# 連続欠席の状態ファイルを temp に隔離する（実ホームの absence.tsv をテストで汚さない）
+export QUORUM_STATE_DIR="$TMP/state"
 
 mk_env "$TMP/none"
 t "外部なし → opus×3 にバックフィル" \

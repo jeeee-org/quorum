@@ -26,10 +26,14 @@ api_allowed() {
   esac
 }
 
+# --check の exit code 規約: 0=可用 / 2=意図的に不参加 / その他非0=参加したいのに使えない
+# APIキー検出による拒否は「意図的に不参加」（課金ガードが効いた状態）なので 2 を返す。
 if [ "${1:-}" = "--check" ]; then
-  enabled || exit 1
+  # 「意図的に参加しない」判定（exit 2）を先に済ませる。CLI の有無より前に置くのは、
+  # 課金ガードが効いている状態を「CLI が壊れている」と誤って連続欠席に数えさせないため。
+  enabled || exit 2
+  api_allowed || exit 2
   command -v claude >/dev/null 2>&1 || exit 1
-  api_allowed || exit 1
   # 旧CLIを誤って使い、ユーザー設定を再読込しないよう隔離フラグの存在も確認する。
   HELP="$(claude --help 2>&1)" || exit 1
   printf '%s' "$HELP" | grep -q -- '--safe-mode' || exit 1
