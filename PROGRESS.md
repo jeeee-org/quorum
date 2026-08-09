@@ -4,7 +4,7 @@
 
 Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
-2026-08-09 に、利用側で溜まっていた改善メモ（2026-07-16〜08-09 の16件）を正本へ取り込み、汎用ハーネスに効くものを一巡して反映し終えた。テストは153件。残タスクは gemini 関連3件と、実運用データ待ちの1件だけ。
+2026-08-09 に、利用側で溜まっていた改善メモ（2026-07-16〜08-09 の17件）を正本へ取り込み、汎用ハーネスに効くものを一巡して反映し終えた。テストは162件。残タスクは gemini 関連3件と、実運用データ待ちの1件だけ。
 
 - **利用側からの持ち込みは `git pull && ./install.sh` で受ける**。`IMPROVEMENTS.md` は install が張る symlink 経由でしか正本に届かないので、リポを移動したら install を回し直す（切れていると実運用の追記が正本に入らない。NOTES.md 参照）。
 - **パネルの健全性は detect_panel.sh の stderr で分かる**。opt-in 済み backend が3回連続で欠席すると警告が出る＝パネルが静かに同族ネイティブ寄りへ退化しているサイン。
@@ -18,6 +18,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 完了
 
+- 2026-08-09: `IMPROVEMENTS.md` の並びを規約と一致させた（先頭5項目の反転で全項目を古い順に／ヘッダのコメント・箇条書き・**両SKILL**の3箇所へ「末尾追記」規約を明記／`test_improvements_order.sh` で昇順とヘッダ文言を機械検査）。利用側 mirror の pull で全22項目 conflict が起きた原因。テスト162件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: 利用側から届いた改善メモをトリアージ。新規は1件（grok の E2BIG 無音死）で、①prompt 受け渡しは `--prompt-file` 化で解消済み・③pack サイズ注意は取り下げ・**②空応答時に stderr 先頭行を `invalid_response:empty:<先頭行>` へ転記のみ新規実装**（原因の違う無音死を判別可能に。集計キーは不変）。テスト153件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: 残TODO 3件を処理。①codex の collab を `--disable multi_agent` で恒久無効化（機能フラグを実機特定）②opt-in 済み backend の連続欠席を stderr へ警告（`--check` に「2=意図的に不参加」を新設して opt-out と区別）③`checks_summary.sh` で誤棄却レビューを1コマンド化。テスト146件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: 取り込んだ改善メモを rubric/packing へ反映。継ぎ目カテゴリ3件追加（仕様内部の整合性・承認権限の射程・構成要素の必要性）＋judge自身が確かめる節、context-packing に「pack は司書の盲点を継承する」節・材料の版/根拠コード欄、mapping.txt に visibility 列、カテゴリ3重複の drift ガードを追加。テスト125件 → [checkpoint](docs/checkpoints/2026-08-09.md)
