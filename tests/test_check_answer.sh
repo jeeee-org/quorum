@@ -59,12 +59,46 @@ printf '[run_grok] invalid_response:argv-too-long — ...\n' > "$TMP/argv2.err"
 out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/argv2.err")"
 t "run側の明示エラーでも argv-too-long" "$([ "$out" = "invalid_response:argv-too-long" ]; echo $?)"
 
-printf 'authentication failed\n' > "$TMP/other.err"
-out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/other.err")"
-t "無関係な stderr なら従来どおり empty" "$([ "$out" = "invalid_response:empty" ]; echo $?)"
-
 out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/nonexistent.err")"
 t "stderr が無くても empty で判定を続ける" "$([ "$out" = "invalid_response:empty" ]; echo $?)"
+
+# --- 既知パターン以外の stderr は先頭行を理由へ転記する（IMPROVEMENTS 2026-08-09） ---
+printf 'authentication failed: token expired\n' > "$TMP/other.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/other.err")"; rc=$?
+t "未知の stderr は empty:<先頭行> として転記される" \
+  "$([ "$out" = "invalid_response:empty:authentication failed: token expired" ] && [ "$rc" = "3" ]; echo $?)"
+
+t "転記しても集計キー（第1・第2フィールド）は empty のまま" \
+  "$([ "$(printf '%s' "$out" | awk -F: '{print $1 ":" $2}')" = "invalid_response:empty" ]; echo $?)"
+
+printf '\n\n   \nrate limit exceeded\nsecond line\n' > "$TMP/blank_head.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/blank_head.err")"
+t "先頭の空行は飛ばして最初の非空行を採る" \
+  "$([ "$out" = "invalid_response:empty:rate limit exceeded" ]; echo $?)"
+
+printf 'col1\tcol2  \t multi   space\n' > "$TMP/tab.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/tab.err")"
+t "タブと連続空白は潰して1行に畳む（checks.txt が TSV のため）" \
+  "$([ "$out" = "invalid_response:empty:col1 col2 multi space" ]; echo $?)"
+
+printf '   \n\t\n' > "$TMP/blank_only.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/blank_only.err")"
+t "stderr が空白のみなら従来どおり empty" "$([ "$out" = "invalid_response:empty" ]; echo $?)"
+
+python3 -c "print('E' * 300)" > "$TMP/long.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/long.err")"
+t "長い stderr は 100 文字で切る" \
+  "$([ "${#out}" = "123" ] && case "$out" in invalid_response:empty:EEE*) true ;; *) false ;; esac; echo $?)"
+
+# 日本語 stderr を切っても不正バイト列を残さない（IMPROVEMENTS 2026-08-02）
+python3 -c "print('日本語のエラー' * 40)" > "$TMP/ja.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/ja.err")"
+printf '%s' "$out" | python3 -c 'import sys; sys.stdin.buffer.read().decode("utf-8")' 2>/dev/null
+t "日本語 stderr を切っても UTF-8 として妥当" "$?"
+
+out="$(LC_ALL=C bash "$CHECK" "$TMP/empty.md" "$TMP/ja.err")"
+printf '%s' "$out" | python3 -c 'import sys; sys.stdin.buffer.read().decode("utf-8")' 2>/dev/null
+t "C ロケールでも壊れたマルチバイト列を残さない" "$?"
 
 out="$(bash "$CHECK" "$TMP/long.md" "$TMP/argv.err")"
 t "本文があれば stderr に関係なく ok" "$([ "$out" = "ok" ]; echo $?)"

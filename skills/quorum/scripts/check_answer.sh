@@ -10,13 +10,18 @@
 # 使い方: check_answer.sh <answer_file> [<stderr_file>]   または   ... | check_answer.sh
 # 出力:   ok                        … 検査通過（exit 0）
 #         invalid_response:<理由>   … 実質回答なしの疑い（exit 3）
-# 理由:   empty            空・空白のみ
+# 理由:   empty            空・空白のみ（stderr に手掛かりがあれば `empty:<stderr先頭行>`）
 #         argv-too-long    空 かつ stderr が単一引数長の上限超過を示している
 #         too_short:<N>B   本文が QUORUM_MIN_ANSWER_BYTES（既定 500）バイト未満
 #
 # stderr_file を渡すと、空応答の**原因**まで判別できる。argv 上限超過（run_grok.sh の旧
 # argv 経路など）は exit 0 で空応答になり、`empty` としか分からないと .err を人が読むまで
-# 原因が特定できなかった（IMPROVEMENTS 2026-07-30 / 08-05）。
+# 原因が特定できなかった（IMPROVEMENTS 2026-07-30 / 08-05）。既知パターン以外でも
+# **stderr の先頭行をそのまま理由へ転記する**（IMPROVEMENTS 2026-08-09）——認証切れ・
+# レート制限・タイムアウトなどの「無音死」は、checks.txt に `empty` としか残らないと
+# judge が「今回は欠席」と記録して終わり、恒久故障が見過ごされてパネルが静かに痩せるため。
+# 理由の第1・第2フィールド（`invalid_response:empty`）は変えないので checks_summary.sh の
+# 集計はそのまま効く。
 set -uo pipefail
 
 MIN="${QUORUM_MIN_ANSWER_BYTES:-500}"
@@ -34,10 +39,23 @@ fi
 # 空・空白のみ
 if [ -z "$(printf '%s' "$CONTENT" | tr -d '[:space:]')" ]; then
   # stderr が渡されていれば、空になった原因まで名指しする
-  if [ "$#" -ge 2 ] && [ -r "$2" ] \
-     && grep -qiE 'argument list too long|argv-too-long' "$2"; then
-    echo "invalid_response:argv-too-long"
-    exit 3
+  if [ "$#" -ge 2 ] && [ -r "$2" ]; then
+    if grep -qiE 'argument list too long|argv-too-long' "$2"; then
+      echo "invalid_response:argv-too-long"
+      exit 3
+    fi
+    # 既知パターン以外は stderr の先頭行を理由へ転記する。checks.txt は
+    # `<label>\tab<verdict>` の TSV なので、タブ・改行を潰して1行に畳む。
+    CAUSE="$(tr -d '\000' < "$2" | grep -m1 -v '^[[:space:]]*$' || true)"
+    CAUSE="$(printf '%s' "$CAUSE" | tr '\t' ' ' | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')"
+    if [ -n "$CAUSE" ]; then
+      SHORT="${CAUSE:0:100}"
+      # 切り出しは C ロケールだとバイト単位になる。末尾に壊れたマルチバイト列を
+      # 残さないよう、切った時だけ末尾の1文字分を落とす（IMPROVEMENTS 2026-08-02）。
+      [ "$SHORT" = "$CAUSE" ] || SHORT="$(printf '%s' "$SHORT" | LC_ALL=C sed -E 's/[\xC0-\xFF][\x80-\xBF]*$//')"
+      echo "invalid_response:empty:${SHORT}"
+      exit 3
+    fi
   fi
   echo "invalid_response:empty"
   exit 3
