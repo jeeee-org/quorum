@@ -25,7 +25,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 
 ### 1. パネルを決める
 - 明示指定があればそれに従う。会話での指定（例「`opus-grok` で」「grok 2体で」「codex をもう1体足して」）は multiset として解釈してそのまま fan-out する。スクリプト経由で固定・増員したい時は `QUORUM_PANEL="opus,opus,codex,grok"`（カンマ/空白区切り）を detect_panel.sh に渡す——指定時は検出・`--check`・補完を全部飛ばしてそのまま出力される。**明示パネルは `--check` とネイティブ枠の床の両方を外すため、成功回答が0件になったら fuse せず中断して報告し**、自動検出パネルでの再実行を提案する（quorum の体裁で単発回答を出さない）。
-- **fable 枠（呼びかけ時のみ）**: ユーザーが「fable をパネルに」「opus 枠を fable で」等と明示した時だけ、opus 枠を `fable` に差し替える（`QUORUM_NATIVE=fable` を detect_panel.sh に渡すか、`QUORUM_PANEL` / 会話指定に `fable` を含める）。fable は judge と同格の高コストモデルなので**自動選択では使わない**し、欠員補完でも増殖させない。fable 行を spawn する前に**1行宣言し、`~/.local/share/quorum/fable_calls.log` に「日時<TAB>panel<TAB>用途一言」を追記する**（グローバル規則の都度課金監査に合わせる）。
+- **fable 枠（呼びかけ時のみ）**: ユーザーが「fable をパネルに」「opus 枠を fable で」等と明示した時だけ、opus 枠を `fable` に差し替える（`QUORUM_NATIVE=fable` を detect_panel.sh に渡すか、`QUORUM_PANEL` / 会話指定に `fable` を含める）。fable は judge と同格の上位モデルで**サブスク枠の使用量を大きく消費する**（Task で起動するサブエージェントは同一アカウント・同一プラン上で走るため、呼び出しごとの別建て請求は立たない——`ANTHROPIC_API_KEY` 等でAPI課金にしている環境は除く。真に従量なのは外部CLI側 = 末尾「注意」参照）ので**自動選択では使わない**し、欠員補完でも増殖させない。fable 行を spawn する前に**1行宣言し、`~/.local/share/quorum/fable_calls.log` に「日時<TAB>panel<TAB>用途一言」を追記する**（グローバル規則の使用量監査に合わせる）。
 - なければ `~/.claude/skills/quorum/scripts/detect_panel.sh` を Bash で実行する。**出力は目標数（`QUORUM_PANEL_SIZE` 既定 3）まで opus で補完済みの multiset**（1行=1パネリスト、同じ名前が複数行=その回数だけ独立実行）。
 - **出力の各行をそのままパネリストにする**：`opus` 行は Task で独立サブエージェントを1体ずつ spawn（複数あれば opus#1 / opus#2 … と区別して監査証跡に明示）。**spawn 時に model を `opus` と明示指定する**——セッションモデルを継承させると judge と同一の高コストモデルが走り、監査証跡の帰属も嘘になる（幅はパネルの安いモデル、深さは judge の役割分担）。非 opus 行は `scripts/run_<name>.sh` を呼ぶ。
 - detect の出力行数が `QUORUM_PANEL_SIZE` を超える場合（distinct バックエンドが目標超）だけ、step 0 の優先順位でトリムし**落としたものを明示**する。

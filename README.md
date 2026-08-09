@@ -142,7 +142,7 @@ opus / codex-native パネリストは各ホストに内蔵のため追加導入
 
 ## 常時トリアージ（グローバルルール）
 
-Claude Codeでは `rules/quorum-triage.md` がグローバル `~/.claude/CLAUDE.md` に入り、Fable の都度課金を見据えた段階エスカレーションを行う：
+Claude Codeでは `rules/quorum-triage.md` がグローバル `~/.claude/CLAUDE.md` に入り、Fable の使用量の大きさを見据えた段階エスカレーションを行う：
 
 ```
 T0: セッションモデル（例 Opus）単発          ← 既定。日常の大半
@@ -153,7 +153,7 @@ T0: セッションモデル（例 Opus）単発          ← 既定。日常の
 
 - 設計根拠は 2026-07-06 の実験（IMPROVEMENTS.md）：深さ型では quorum が単発の最強モデルに勝ちにくく、広さ型では panel が効く。T2b は runs/ の成果物を再利用するので追加コストは Fable 1コール分。
 - T2b の発動は**観測可能なシグナルのみ**（未解決 Contradictions / 🕳️ 欠落 / 事前コミット不安定）。モデルの「難しい気がする」では発動しない。
-- fable 呼び出しは必ず事前宣言＋ `~/.local/share/quorum/fable_calls.log` に記録（課金監査）。ユーザーの明示指定（「単発で」「quorumで」「fableで」）が常に優先。
+- fable 呼び出しは必ず事前宣言＋ `~/.local/share/quorum/fable_calls.log` に記録（使用量監査。fable はサブスク枠を消費するだけで別建て請求は立たない）。ユーザーの明示指定（「単発で」「quorumで」「fableで」）が常に優先。
 - 規則本文の変更は**リポの `rules/quorum-triage.md` を編集して `./install.sh`**（各PCの CLAUDE.md を直接編集しない。ブロック外のユーザー記述には触れない設計）。
 
 Codexでは `claude-rules` の T0 / T1 / T2a / CADENCE を正本とする。`rules/codex-quorum-triage.md` は、T1の実行依頼を `$quorum` へ接続するだけで、Fable固有のT2bは持ち込まない。
@@ -213,7 +213,7 @@ export GROK_MODEL=grok-4    # 必要ならモデル上書き（最新を確認�
 |---|---|---|
 | `QUORUM_PANEL` | (未設定) | パネルの明示指定（カンマ/空白区切り multiset。タブ・改行も可）。指定時は検出・`--check`・補完を飛ばす。現在ホストと同名の外部backend禁止だけは上書き不可 |
 | `QUORUM_PANEL_SIZE` | 3 | 目標パネル数。既定（外部オフ）ではClaudeホストは opus×3、Codexホストは codex-native×3。opt-in した外部で埋め、欠員はホストのネイティブ枠で補完 |
-| `QUORUM_NATIVE` | opus | Claudeホストのネイティブ枠の差し替え（`opus` \| `fable`）。**fable はユーザーの呼びかけ時のみ**（judge と同格の高コスト。宣言＋`fable_calls.log` 追記が必須）。補完で fable は増殖しない |
+| `QUORUM_NATIVE` | opus | Claudeホストのネイティブ枠の差し替え（`opus` \| `fable`）。**fable はユーザーの呼びかけ時のみ**（judge と同格でサブスク枠の使用量が大きい。宣言＋`fable_calls.log` 追記が必須）。補完で fable は増殖しない |
 | `QUORUM_TIMEOUT` | 300 | 各外部パネリストの実行時間上限（秒）。run スクリプトに内蔵、超過は欠席扱い |
 | `QUORUM_ENABLE_CLAUDE` | **オフ（未設定=不参加）** | `1`/`true`/`yes` でCodexホストの外部Claudeを参加。Claudeホストでは常に外部Claudeを除外 |
 | `QUORUM_ALLOW_CLAUDE_API` | (未設定) | `ANTHROPIC_API_KEY` 検出時も外部Claudeを許可する明示スイッチ。`1`/`true`/`yes` のみ有効 |

@@ -16,3 +16,9 @@
 - **なぜ**: (1) 共有正本の既定は「外部依存ゼロ・追加課金ゼロ・驚きなし」であるべき。新PC/CI/未認証環境が clone しただけで opus×3 として無害に動く。(2) 参加は各PCの能力（CLI導入・認証・課金許容）に強く依存するローカル事情なので、コード既定ではなくPCローカル設定（`~/.claude/settings.json`）に置くのが筋。(3) codex だけ既定オンだった非対称を解消し、全外部を同一規約（`${VAR:-}` で未設定=不参加、`1/true/yes` で参加）に揃えた。grok は従来スイッチ自体が無く、`QUORUM_ENABLE_GROK` を新設。
 - **各PCの opt-in 先**: `rules/settings-env.json` は3枠とも `"0"`（可視ノブの既定）をマージし、install は**未設定キーのみ**書くので、PCで `"1"` に上書きした参加設定は再インストールで保たれる。grok だけ落として codex は残す等の粒度も可能（巨大 pack で grok が不安定な問題への即応にも使える → IMPROVEMENTS 2026-07-13 の grok 項）。
 - **代替案（不採用）**: 単一の `QUORUM_NATIVE_ONLY` で一括 opus-only にする案。per-backend スイッチの方が「grok だけ除外」等の合成が効き、backend が少数固定の本リポでは実利が上と判断した。
+
+## fable の費用モデル（2026-08-09）
+
+- **fable は「都度課金」ではない**。Task で起動するサブエージェントは**同一アカウント・同一プラン上**で走るので、消費されるのはサブスク枠の使用量であって、呼び出しごとの別建て請求は立たない。この構成で真に従量なのは外部CLI側（grok = xAI APIキー / codex は認証方式次第）、および `ANTHROPIC_API_KEY` 等で API 課金にしている環境。
+- **なぜ書いておくか**: 2026-08 に利用側PJが quorum の記述をそのまま引き継ぎ、「Fable は都度課金」前提で上限管理を設計しかけた。`fable_calls.log` の存在が「課金の記録」に見えるのが誘因なので、**log の目的は使用量監査（黙ってエスカレーションしない規律）**だと SKILL / rules / README のすべてで言い切る。
+- **リポを移動したら `./install.sh` を再実行する**。`IMPROVEMENTS.md` は install が張る symlink 経由でしか正本に届かないため、clone のパスが変わると**dangling symlink のまま気づかず**、実運用の追記が正本に入らなくなる（実際に 2026-07-16〜08-09 の15件が届いていなかった）。`readlink -f ~/.claude/skills/quorum/IMPROVEMENTS.md` で解決先を確認できる。
