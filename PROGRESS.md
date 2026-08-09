@@ -4,6 +4,11 @@
 
 Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
+2026-08-09 に、利用側で溜まっていた改善メモ（2026-07-16〜08-09 の15件）を正本へ取り込み、汎用ハーネスに効くものを一巡して反映し終えた。テストは146件。残タスクは gemini 関連3件と、実運用データ待ちの1件だけ。
+
+- **利用側からの持ち込みは `git pull && ./install.sh` で受ける**。`IMPROVEMENTS.md` は install が張る symlink 経由でしか正本に届かないので、リポを移動したら install を回し直す（切れていると実運用の追記が正本に入らない。NOTES.md 参照）。
+- **パネルの健全性は detect_panel.sh の stderr で分かる**。opt-in 済み backend が3回連続で欠席すると警告が出る＝パネルが静かに同族ネイティブ寄りへ退化しているサイン。
+
 ## 次にやること
 
 - [ ] 実質回答なし検知の第2段（**データ待ち**）: この clone には checks.txt を持つ run が0件で誤棄却の有無を判断できない。運用が溜まったら `scripts/checks_summary.sh` を実行し、閾値付近に実質回答が無ければ run 側の最小バイト数ゲート（欠席扱い）へ格上げする（IMPROVEMENTS 2026-07-13）
