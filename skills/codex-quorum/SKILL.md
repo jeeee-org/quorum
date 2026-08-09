@@ -27,11 +27,11 @@ description: 高ステークスかつ広さ・盲点リスクが支配的な問�
 2. `RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/runs/$(date -u +%Y%m%dT%H%M%SZ)"` を作り、`prompt.md` と `<匿名ラベル>\t<backend>` 形式の `mapping.txt` を保存する。同名が既にあれば衝突しない接尾辞を付ける。
 3. 全パネリストを待たずに起動する。
    - `codex-native`: 1行につき新しい直接サブエージェントを1体 spawn する。会話履歴や他回答を渡さず、同じ `$PROMPT` だけを渡す。複数なら `codex-native#1` のように区別する。
-   - 外部 `<name>`: 同じ `$PROMPT` を stdin で `bash "$SKILL_DIR/scripts/run_<name>.sh"` へ渡す。
+   - 外部 `<name>`: 同じ `$PROMPT` を stdin で `bash "$SKILL_DIR/scripts/run_<name>.sh"` へ渡し、stderr は `answer_<label>.err` に落とす。空応答の原因は stderr にしか出ない。
 4. 起動直後、どの回答も読む前に、judge 自身の暫定結論と主根拠を `precommit.md` に保存する。
 5. 各成功回答の全文を匿名の `answer_<label>.md` に保存する。パネリスト間で回答を共有しない。timeout・空応答・失敗は dropped として記録し、成功分で続行する。成功回答が0件になった場合（特に `QUORUM_PANEL` 明示時の全滅）は judge へ進まず中断して報告する。
 6. 外部 `run_*.sh` はパネリスト専用ガード（単一回答者・quorum再実行/fan-out/collab禁止。正本 `scripts/panelist_guard.txt`）をプロンプト先頭に自動前置する。SKILL 側での付与は不要で、`prompt.md` には元の `$PROMPT` を保存する。
-7. **回収後の軽量検査（監査記録・自動棄却しない）**: 外部バックエンドの各回答は保存後に `bash "$SKILL_DIR/scripts/check_answer.sh" "$RUN_DIR/answer_<label>.md"` に通す。`invalid_response:<reason>` が出たら `$RUN_DIR/checks.txt` に `<label>\t<verdict>` を追記し、judge が「実質回答なしの疑い」として精査する（採用理由か dropped 判定を監査証跡に明記）。exit 0・非空でも成功と見なさない。
+7. **回収後の軽量検査（監査記録・自動棄却しない）**: 外部バックエンドの各回答は保存後に `bash "$SKILL_DIR/scripts/check_answer.sh" "$RUN_DIR/answer_<label>.md" "$RUN_DIR/answer_<label>.err"` に通す。`invalid_response:<reason>` が出たら `$RUN_DIR/checks.txt` に `<label>\t<verdict>` を追記し、judge が「実質回答なしの疑い」として精査する（採用理由か dropped 判定を監査証跡に明記）。exit 0・非空でも成功と見なさない。
 
 ネイティブ・サブエージェントの同時実行数が環境上限に達した場合、起動できない枠を dropped にして続行する。再帰的な子の spawn は許可しない。
 

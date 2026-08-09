@@ -6,7 +6,6 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 次にやること
 
-- [ ] **`run_grok.sh` の prompt を argv → stdin/ファイル渡しへ改修**（最頻の再発。2026-07-25/07-30/08-05 の計4件で、pack が単一引数上限 ~128KB を超えると `Argument list too long` かつ **exit 0・空応答**で grok が構造的に欠席する）。あわせて run_*.sh 規約に「prompt を argv に展開しない」を明記し、`check_answer.sh` に stderr の当該メッセージを invalid 理由として拾わせる
 - [ ] 実質回答なし検知の第2段: checks.txt の誤棄却ゼロを運用確認後、run 側の最小バイト数ゲート（欠席扱い）へ格上げ。巨大pack時の grok 自動降格閾値・ファイル渡し方式も未着手（IMPROVEMENTS 2026-07-13）
 - [ ] codex CLI の collab 無効化フラグ調査（ガード前置は実装済み。フラグがあれば恒久化。IMPROVEMENTS 2026-07-13）
 - [ ] gemini/curl経路の実キーE2Eを確認する
@@ -16,6 +15,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 完了
 
+- 2026-08-09: grok の大型pack欠席を解消。CLI経路を argv → `--prompt-file` へ（248KB実機E2E）。旧CLIは上限超過をexit 4で明示、`check_answer.sh` は stderr から `argv-too-long` を判定。run_*.sh規約に「promptをargvに展開しない」を明記。テスト121件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: fable の費用表現を「都度課金」→「サブスク枠の使用量」へ是正（SKILL/rules/README。同一プラン上で走る＝別建て請求なし、ただしAPIキー環境は除く）。あわせて dangling だった IMPROVEMENTS.md の symlink を install 再実行で復旧し、届いていなかった改善メモ15件（2026-07-16〜08-09）を正本へ取り込み → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-07-15: GROK_MODEL既定値`grok-4.5`を確認。2026-07-08発表・07-09 GAの現行フラッグシップで、xAI公式のGrok Build CLI既定とも一致（サードパーティ製grok-cliのgrok-code-fast-1既定と誤認しないよう要注意）。grok-5は未提供（トレーニング中）。既定値の変更不要と判定
 - 2026-07-15: IMPROVEMENTS 2件の第1段実装: ①回収後の軽量検査 `check_answer.sh`（invalid_response を checks.txt へ監査記録・自動棄却なし）②パネリスト専用ガード `panelist_guard.txt` を全外部 run_*.sh に固定前置（再帰fan-out/collab/メタ応答対策の共通1施策）。テスト105件パス＋実機grokでガード実効を副次確認 → [checkpoint](docs/checkpoints/2026-07-15.md)

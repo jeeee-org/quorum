@@ -188,6 +188,7 @@ quorum-shell ~/Develop/foo -- --model opus "まず概要を教えて"   # -- 以
 1. `run_<name>.sh --check` … 使えるなら exit 0、ダメなら非0（CLI/キーの有無などを自己判定）
 2. `run_<name>.sh`（引数なし）… プロンプトを **stdin** で受け、回答全文を **stdout** へ
 3. 任意で `QUORUM_TIMEOUT` を尊重（`command -v timeout` があれば `timeout "${QUORUM_TIMEOUT:-300}"` でラップ）
+4. **プロンプトを argv に展開しない**（stdin か一時ファイル渡しにする）。単一引数長の上限（Linux の `MAX_ARG_STRLEN` ≒ 128KB。`ARG_MAX` 2MB とは別物）を超えると exec が `Argument list too long` で失敗し、**exit 0・空応答**でそのパネリストが無言で欠席する。実装レビュー型の大型 pack では確実に踏む（grok で4回再発 → `--prompt-file` へ移行済み）。argv は実行中 `ps` で全文が見える点でも避ける
 
 `detect_panel.sh` が `run_*.sh` を自動ディスカバリして `--check` で取捨し、fan-out は `<name>` をそのまま使う。
 
@@ -206,6 +207,8 @@ export XAI_API_KEY=xai-...
 export GROK_MODEL=grok-4    # 必要ならモデル上書き（最新を確認）
 ```
 `run_grok.sh` は `grok` CLI があればそちらを優先し、無ければ API を使う。
+
+CLI 経路のプロンプトは **`--prompt-file`（一時ファイル渡し）** で渡す。argv だと単一引数長の上限 ≒128KB で exec が失敗し、**exit 0・空応答**で grok だけが無言で欠席するため（大型 pack のレビューで4回再発）。`--prompt-file` 非対応の古い CLI では argv にフォールバックするが、上限超過時は空応答ではなく明示エラー（exit 4）で落ちる。その場合は `grok update` で更新する。
 
 ## チューニング用の環境変数
 

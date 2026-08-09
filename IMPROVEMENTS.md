@@ -144,6 +144,7 @@ quorum スキルを使いながら気づいた、汎用融合ハーネスとし�
 - **状況**: 実装レビューの pack (238KB = 契約 + 全 diff) を stdin で渡したところ、run_grok.sh 内部が prompt を引数展開しており /usr/bin/timeout の ARG_MAX 超過で空応答 ×2 (checks.txt に記録)。codex/opus は同じ pack で問題なし
 - **気づき**: バックエンドの受け渡し実装が argv 経由だと pack サイズ上限が silent に ~128KB になる。check_answer.sh が空応答を拾ったので気づけたが、原因特定は .err 頼み
 - **改善案**: run_grok.sh の prompt 受け渡しを一時ファイル or stdin 直結へ変更。あわせて run_*.sh 規約に「prompt を argv に展開しない」を明記。応急運用 = 100KB 超の pack は diff を要約したスリム版を grok にだけ渡す
+- **反映（2026-08-09）**: **本項と 07-25 ×2 / 07-30 の計4件をまとめて解消**。Grok Build CLI に `--prompt-file <PATH>` があったので、CLI 経路を argv から一時ファイル渡しへ変更した（プロンプトは空 CWD の外に置く。実機 E2E で 248KB の pack が欠落なく通ることを確認）。IMPROVEMENTS 案の「agy 風にファイルを読ませる」より直接的で、エージェントの読み取り挙動に依存しない。副次的に argv 経由の `ps` 露出も消えた。あわせて (a) `--prompt-file` 非対応の旧 CLI 向けフォールバックでは上限超過を **exit 4 + 明示 stderr** で落とす（無言の空応答にしない。閾値 `QUORUM_MAX_ARGV_BYTES` 既定 120000）、(b) `check_answer.sh` に第2引数 stderr を追加し `invalid_response:argv-too-long` を判定、(c) SKILL/README の run_*.sh 規約に「prompt を argv に展開しない」を明記、(d) SKILL の回収手順で stderr を `answer_<label>.err` に落とす、を実施。テスト 121 件 ALL PASS
 
 ## 2026-08-05 — SW パイプライン停止条件: 解凍後の層 2 再適用が未定義
 - **状況**: 実装レビューが FAIL→FAIL→凍結→ユーザー解凍→FAIL (confirmed は 4→2 に縮小・新 ID) と進行。層 2「同一ゲート 2 回 FAIL = 凍結」を literal に再適用すると 10 行修正のたびに凍結→解凍のスラッシングになる

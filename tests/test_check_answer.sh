@@ -50,6 +50,25 @@ t "非整数の閾値は exit 2" "$([ "$?" = "2" ]; echo $?)"
 bash "$CHECK" "$TMP/nonexistent.md" >/dev/null 2>&1
 t "読めないファイルは exit 2" "$([ "$?" = "2" ]; echo $?)"
 
+# --- stderr を渡すと空応答の原因まで名指しできる（IMPROVEMENTS 2026-07-30 / 08-05） ---
+printf '/usr/bin/timeout: Argument list too long\n' > "$TMP/argv.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/argv.err")"; rc=$?
+t "空＋stderrが引数長超過なら argv-too-long" "$([ "$out" = "invalid_response:argv-too-long" ] && [ "$rc" = "3" ]; echo $?)"
+
+printf '[run_grok] invalid_response:argv-too-long — ...\n' > "$TMP/argv2.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/argv2.err")"
+t "run側の明示エラーでも argv-too-long" "$([ "$out" = "invalid_response:argv-too-long" ]; echo $?)"
+
+printf 'authentication failed\n' > "$TMP/other.err"
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/other.err")"
+t "無関係な stderr なら従来どおり empty" "$([ "$out" = "invalid_response:empty" ]; echo $?)"
+
+out="$(bash "$CHECK" "$TMP/empty.md" "$TMP/nonexistent.err")"
+t "stderr が無くても empty で判定を続ける" "$([ "$out" = "invalid_response:empty" ]; echo $?)"
+
+out="$(bash "$CHECK" "$TMP/long.md" "$TMP/argv.err")"
+t "本文があれば stderr に関係なく ok" "$([ "$out" = "ok" ]; echo $?)"
+
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

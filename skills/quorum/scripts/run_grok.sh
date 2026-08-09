@@ -7,10 +7,15 @@
 #   2) xAI API（`XAI_API_KEY`）= 従量課金。CLI が無い時のフォールバック。
 #
 # 学習オフ: grok.com の Settings > Data で「Improve the model」をオフにする（アカウント単位）。
-# 検証: grok-cli 0.2.51（-p / --single）。
-# ⚠️ CLI 経路はプロンプトを argv（-p）で渡すため、実行中は ps で全文が見える（grok CLI は
-#    stdin 渡し未対応）。機密は context-packing の段階でマスク済みであること。API 経路は
-#    キー・本文とも argv に載せない（curl config / 一時ファイル経由）。
+# 検証: grok-cli 0.2.51（-p / --single）、Grok Build CLI の `--prompt-file`（2026-08-09 実機E2E。
+#       248KB の pack でも欠落なく通ることを確認）。
+#
+# プロンプトは argv に載せない（`--prompt-file` を使う）。理由は2つ:
+#   1) 単一引数長の上限（Linux の MAX_ARG_STRLEN ≒ 128KB。ARG_MAX 2MB とは別物）を超えると
+#      exec 自体が `Argument list too long` で失敗し、grok が**無言で空応答**になる。
+#      大型 pack のレビューで4回再発した（IMPROVEMENTS 2026-07-25 ×2 / 07-30 / 08-05）。
+#   2) argv は実行中 ps で全文が見える。API 経路がキー・本文とも argv に載せない
+#      （curl config / 一時ファイル経由）のと規約を揃える。
 set -euo pipefail
 
 # 標準のインストール先を PATH に追加（Claude Code の非ログインシェル対策）
@@ -49,13 +54,32 @@ if command -v grok >/dev/null 2>&1; then
   # 空の作業ディレクトリで実行する。grok はエージェント型CLIで CWD のファイルを読めるため、
   # 呼び出し元のリポ等を見せない（パネリストに渡すのは $PROMPT のみ、という設計の強制）。
   WORK_DIR="$(mktemp -d)"
-  trap 'rm -rf "$WORK_DIR"' EXIT
+  # プロンプトは WORK_DIR の外に置く。CWD に置くと「読めるファイルがある」状態になり、
+  # 空 CWD で隔離している意味が薄れるため。--prompt-file は CLI 自身が読むので外でよい。
+  PROMPT_DIR="$(mktemp -d)"
+  trap 'rm -rf "$WORK_DIR" "$PROMPT_DIR"' EXIT
+  PROMPT_FILE="$PROMPT_DIR/prompt.md"
+  printf '%s' "$PROMPT" > "$PROMPT_FILE"
   cd "$WORK_DIR"
-  if [ -n "$MODEL" ]; then
-    $TO grok -p "$PROMPT" -m "$MODEL"
-  else
-    $TO grok -p "$PROMPT"
+
+  MODEL_ARGS=()
+  if [ -n "$MODEL" ]; then MODEL_ARGS=(-m "$MODEL"); fi
+
+  # 本線: --prompt-file（argv 上限なし・ps に本文が出ない）
+  if grok --help 2>/dev/null | grep -q -- '--prompt-file'; then
+    $TO grok --prompt-file "$PROMPT_FILE" "${MODEL_ARGS[@]}"
+    exit $?
   fi
+
+  # 旧 CLI 向けフォールバック（argv 渡し）。上限超過は「無言の空応答」ではなく明示エラーで
+  # 落とす——空応答のまま返すと judge 側で「回答したが中身が無い」と誤読されるため。
+  PROMPT_BYTES="$(printf '%s' "$PROMPT" | wc -c | tr -d ' ')"
+  MAX_ARGV_BYTES="${QUORUM_MAX_ARGV_BYTES:-120000}"
+  if [ "$PROMPT_BYTES" -gt "$MAX_ARGV_BYTES" ]; then
+    echo "[run_grok] invalid_response:argv-too-long — プロンプト ${PROMPT_BYTES}B が argv 上限 ${MAX_ARGV_BYTES}B を超過。--prompt-file 対応の grok CLI へ更新してください（grok update）" >&2
+    exit 4
+  fi
+  $TO grok -p "$PROMPT" "${MODEL_ARGS[@]}"
   exit $?
 fi
 
