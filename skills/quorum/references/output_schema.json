@@ -101,7 +101,7 @@
         "properties": {
           "category": {
             "type": "string",
-            "enum": ["境界の検証", "境界をまたぐ整合性・原子性", "失敗モード", "観測・追跡", "移行の途中状態", "コスト・撤退", "暗黙の前提"]
+            "enum": ["境界の検証", "仕様内部の整合性", "承認・権限の射程", "構成要素の必要性", "境界をまたぐ整合性・原子性", "失敗モード", "観測・追跡", "移行の途中状態", "コスト・撤退", "暗黙の前提"]
           },
           "verdict": { "type": "string", "enum": ["covered", "partial", "missing", "na"] },
           "note": { "type": "string", "description": "帰属つき所見。missing なら judge の補足内容" }

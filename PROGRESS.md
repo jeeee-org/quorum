@@ -15,6 +15,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 完了
 
+- 2026-08-09: 取り込んだ改善メモを rubric/packing へ反映。継ぎ目カテゴリ3件追加（仕様内部の整合性・承認権限の射程・構成要素の必要性）＋judge自身が確かめる節、context-packing に「pack は司書の盲点を継承する」節・材料の版/根拠コード欄、mapping.txt に visibility 列、カテゴリ3重複の drift ガードを追加。テスト125件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: grok の大型pack欠席を解消。CLI経路を argv → `--prompt-file` へ（248KB実機E2E）。旧CLIは上限超過をexit 4で明示、`check_answer.sh` は stderr から `argv-too-long` を判定。run_*.sh規約に「promptをargvに展開しない」を明記。テスト121件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: fable の費用表現を「都度課金」→「サブスク枠の使用量」へ是正（SKILL/rules/README。同一プラン上で走る＝別建て請求なし、ただしAPIキー環境は除く）。あわせて dangling だった IMPROVEMENTS.md の symlink を install 再実行で復旧し、届いていなかった改善メモ15件（2026-07-16〜08-09）を正本へ取り込み → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-07-15: GROK_MODEL既定値`grok-4.5`を確認。2026-07-08発表・07-09 GAの現行フラッグシップで、xAI公式のGrok Build CLI既定とも一致（サードパーティ製grok-cliのgrok-code-fast-1既定と誤認しないよう要注意）。grok-5は未提供（トレーニング中）。既定値の変更不要と判定

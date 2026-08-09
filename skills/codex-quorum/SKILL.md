@@ -24,7 +24,7 @@ description: 高ステークスかつ広さ・盲点リスクが支配的な問�
 ## 2. 独立・並列 fan-out
 
 1. 問いが複数ファイルやライブ状態に依存する時だけ `references/context-packing.md` に従い、自己完結した `$PROMPT` を作る。小さい問いは元の問いをそのまま使う。
-2. `RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/runs/$(date -u +%Y%m%dT%H%M%SZ)"` を作り、`prompt.md` と `<匿名ラベル>\t<backend>` 形式の `mapping.txt` を保存する。同名が既にあれば衝突しない接尾辞を付ける。
+2. `RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/runs/$(date -u +%Y%m%dT%H%M%SZ)"` を作り、`prompt.md` と `<匿名ラベル>\t<backend>\t<visibility>` 形式の `mapping.txt` を保存する（visibility = `repo`/`pack-only`/`unknown`。backend 名で決めつけず回答内容で判定する）。同名が既にあれば衝突しない接尾辞を付ける。
 3. 全パネリストを待たずに起動する。
    - `codex-native`: 1行につき新しい直接サブエージェントを1体 spawn する。会話履歴や他回答を渡さず、同じ `$PROMPT` だけを渡す。複数なら `codex-native#1` のように区別する。
    - 外部 `<name>`: 同じ `$PROMPT` を stdin で `bash "$SKILL_DIR/scripts/run_<name>.sh"` へ渡し、stderr は `answer_<label>.err` に落とす。空応答の原因は stderr にしか出ない。

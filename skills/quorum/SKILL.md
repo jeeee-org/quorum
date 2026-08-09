@@ -29,6 +29,7 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 - なければ `~/.claude/skills/quorum/scripts/detect_panel.sh` を Bash で実行する。**出力は目標数（`QUORUM_PANEL_SIZE` 既定 3）まで opus で補完済みの multiset**（1行=1パネリスト、同じ名前が複数行=その回数だけ独立実行）。
 - **出力の各行をそのままパネリストにする**：`opus` 行は Task で独立サブエージェントを1体ずつ spawn（複数あれば opus#1 / opus#2 … と区別して監査証跡に明示）。**spawn 時に model を `opus` と明示指定する**——セッションモデルを継承させると judge と同一の高コストモデルが走り、監査証跡の帰属も嘘になる（幅はパネルの安いモデル、深さは judge の役割分担）。非 opus 行は `scripts/run_<name>.sh` を呼ぶ。
 - detect の出力行数が `QUORUM_PANEL_SIZE` を超える場合（distinct バックエンドが目標超）だけ、step 0 の優先順位でトリムし**落としたものを明示**する。
+- **対象がリポ内資産に依存する問い（設計・実装レビュー型）では、リポを読める backend を最低1体は必ず含める**（通常は `opus` 枠）。2026-08-03 の実走では、リポを読めた回答だけが「設計文書の記述と実装・実データの食い違い」を出し、pack しか読めない回答だけが「承認の射程を超えた実施順」を出した——**どちらか一方に寄せると片側の欠陥が丸ごと抜ける**。distinct な多様性（別ベンダー）とは別軸の**アクセス権の多様性**として確保する。
 
 **バックエンドは規約ベース（汎用）**。detect_panel.sh は `scripts/run_<name>.sh` を自動ディスカバリし、各スクリプトの `--check`（exit 0=可用）で取捨する。出力された `<name>` ごとに `scripts/run_<name>.sh` を呼べばよい（個別の分岐を SKILL に書かない）。**「使える枠は本物のモデル・足りない枠は opus」**という補完は detect_panel.sh が行うので、SKILL 側は出力を信じて回すだけでよい。
 
@@ -45,7 +46,8 @@ description: 高難度・高ステークスの問いを「独立並列 → judge
 
 ### 2. fan-out（独立・並列・ブラインド）
 - **問いが巨大MD／複数ファイル／ライブ状態に依存する場合は、fan-out の前に `references/context-packing.md` の「司書」手順で `$PROMPT` を自己完結化する**（パネリスト＝特に外部CLIはリポも `~/.claude` も見えないので、渡すテキストの質が回答の上限になる）。材料が小さい問いはこの手順を飛ばして素の問いを渡す。
-- **run ディレクトリを作り、生の入出力をファイルに残す**：`RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/runs/$(date -u +%Y%m%dT%H%M%SZ)"` を作成し、投げたプロンプトを `$RUN_DIR/prompt.md` に保存する。各パネリストの回答全文もここに保存する——外部CLIは `... | tee "$RUN_DIR/answer_<label>.md"`、opus サブエージェントの回答はメインが Write で保存。ラベルと backend の対応は `$RUN_DIR/mapping.txt`（`<label>\t<backend>` 1行ずつ）に書く（ラベルは step 3 の匿名化で使う）。judge の引用を後から検証でき、一部パネリストが落ちても成功分を失わない。
+- **run ディレクトリを作り、生の入出力をファイルに残す**：`RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/runs/$(date -u +%Y%m%dT%H%M%SZ)"` を作成し、投げたプロンプトを `$RUN_DIR/prompt.md` に保存する。各パネリストの回答全文もここに保存する——外部CLIは `... | tee "$RUN_DIR/answer_<label>.md"`、opus サブエージェントの回答はメインが Write で保存。ラベルと backend の対応は `$RUN_DIR/mapping.txt`（`<label>\t<backend>\t<visibility>` 1行ずつ）に書く（ラベルは step 3 の匿名化で使う）。judge の引用を後から検証でき、一部パネリストが落ちても成功分を失わない。
+  - **3列目 `visibility` はそのパネリストがリポを読めたか**（`repo` / `pack-only` / `unknown`）。判定は backend 名で決めつけず、**回答の内容で確かめる**——外部CLIでも実際にローカルファイルを読んで集計まですることがあり（2026-08-03 の grok）、同じ backend でも run ごとに揺れる。監査証跡で「この指摘はどの可視性から出たか」を追うための列（judge_rubric の接地の非対称）。
 - **judge の事前コミット**：fan-out を投げた直後・**どのパネリスト回答も読む前に**、メインは自分の暫定回答（結論と主根拠を数行）を `$RUN_DIR/precommit.md` に書き留める。fuse 後、暫定からの差分（パネルが結論を動かしたか・何を足したか）を監査証跡に1行で書く。**パネルが結論を全く動かさない実行が続くなら、その問いの型は単発で足りるサイン**——IMPROVEMENTS.md に記録する（step 0 の分岐を経験的に更新する材料）。
 - **全パネリストに完全に同じプロンプト（ユーザーの問い／pack 済みなら同一 pack）をそのまま渡す**。言い換え・役割付与（「批評家として」等）はしない。多様性は演出せず独立実行から収穫する。
 - `opus` / `fable` パネリストは Task でサブエージェントとして並列起動（model をその名前で明示指定）。各自に web 検索と bash を使って独立に調べさせる。fable 行は spawn 前の宣言と fable_calls.log 追記を忘れない（step 1）。

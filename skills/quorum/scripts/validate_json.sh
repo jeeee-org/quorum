@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # --output-format json の出力を検証する決定論ゲート。
 # stdin に JSON（```json フェンス付きでも可）を受け、output_schema.json の要点を機械チェックする：
-#   必須キー / panel.used 非空 / seam_check 7カテゴリ全件 / verdict enum / note 非空
+#   必須キー / panel.used 非空 / seam_check 全10カテゴリ / verdict enum / note 非空
 # OK なら "OK" を stdout に出して exit 0。問題は 1行ずつ stderr に出して exit 1。
 # 依存は python3 標準ライブラリのみ（jsonschema 不要）。
 # 注意: バックエンド規約（run_<name>.sh）とは無関係の補助スクリプト。detect_panel.sh には拾われない。
@@ -37,7 +37,8 @@ if isinstance(panel, dict):
 elif "panel" in data:
     errs.append("panel がオブジェクトでない")
 
-CATS = ["境界の検証", "境界をまたぐ整合性・原子性", "失敗モード", "観測・追跡",
+CATS = ["境界の検証", "仕様内部の整合性", "承認・権限の射程", "構成要素の必要性",
+        "境界をまたぐ整合性・原子性", "失敗モード", "観測・追跡",
         "移行の途中状態", "コスト・撤退", "暗黙の前提"]
 VERDICTS = {"covered", "partial", "missing", "na"}
 

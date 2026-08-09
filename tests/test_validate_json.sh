@@ -8,6 +8,9 @@ PASS=0; FAIL=0
 
 VALID='{"question":"q","final_answer":"a","panel":{"used":["opus"]},"consensus":[],"contradictions":[],"seam_check":[
 {"category":"境界の検証","verdict":"na","note":"x"},
+{"category":"仕様内部の整合性","verdict":"covered","note":"x"},
+{"category":"承認・権限の射程","verdict":"na","note":"x"},
+{"category":"構成要素の必要性","verdict":"missing","note":"x"},
 {"category":"境界をまたぐ整合性・原子性","verdict":"na","note":"x"},
 {"category":"失敗モード","verdict":"covered","note":"x"},
 {"category":"観測・追跡","verdict":"partial","note":"x"},
