@@ -4,7 +4,7 @@
 
 Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
-2026-08-13 に、利用側から届いた改善メモ3件（08-11 ×2 / 08-12）を取り込み、grok の**メタ応答（作業予告だけで exit 0）**対策を実装した。テストは181件。残タスクは gemini 関連3件と、実運用データ待ちの1件、判断保留の refuter 工程。
+2026-08-13 に、利用側から届いた改善メモ3件（08-11 ×2 / 08-12）を取り込み、grok の**メタ応答（作業予告だけで exit 0）**対策を実装した。テストは181件。当PCへは配布済みだが**利用側PCは未配布**（`git pull && ./install.sh` 待ち）。残タスクは gemini 関連3件と、実運用データ待ちの1件、判断保留の refuter 工程。
 
 - **利用側からの持ち込みは `git pull && ./install.sh` で受ける**。`IMPROVEMENTS.md` は install が張る symlink 経由でしか正本に届かないので、リポを移動したら install を回し直す（切れていると実運用の追記が正本に入らない。NOTES.md 参照）。
 - **`IMPROVEMENTS.md` は古い順・末尾追記**。並べ替えると全項目 conflict になり、その回の実質的な追記を巻き込んで失う。規約はヘッダ・箇条書き・両SKILLの3箇所にあり、`test_improvements_order.sh` が昇順を機械検査する。
