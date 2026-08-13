@@ -6,7 +6,12 @@
 # プロンプト受け渡しは2経路:
 #   本線     … --prompt-file（argv 上限なし。IMPROVEMENTS 2026-07-25/07-30/08-05 の是正）
 #   旧CLI用  … -p argv。上限超過は無言の空応答ではなく明示エラー（exit 4）で落とす
+# メタ応答リトライ（IMPROVEMENTS 2026-08-11 / 08-12）は末尾の専用セクションで検証する。
 set -uo pipefail
+
+# 受け渡し経路の検証中はリトライを止める（mock の回答は短くリトライ条件に当たるため）。
+# リトライ自体は末尾の専用セクションで明示的に有効化して検証する。
+export QUORUM_GROK_RETRY=0
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN="$REPO/skills/quorum/scripts/run_grok.sh"
@@ -110,6 +115,80 @@ t "check_answer が argv-too-long を判定できる" \
 output="$(printf 'same prompt' | HOME="$TMP" XAI_API_KEY= QUORUM_MAX_ARGV_BYTES=5 \
   PATH="$OLD_BIN:$PATH" bash "$RUN" 2>/dev/null)"; rc=$?
 t "QUORUM_MAX_ARGV_BYTES で閾値を下げられる" "$([ "$rc" = "4" ]; echo $?)"
+
+# --- メタ応答リトライ（IMPROVEMENTS 2026-08-11 / 08-12） ---
+# grok は重い依頼ほど「これから読みます」だけ返して exit 0 する。guard の文言では止まらない
+# ことが 4 run で確認されたので、run 側で1回だけ投げ直す。
+RETRY_BIN="$TMP/bin-retry"; mkdir -p "$RETRY_BIN"
+cat > "$RETRY_BIN/grok" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--help" ]; then printf 'Options:\n      --prompt-file <PATH>\n'; exit 0; fi
+n=1
+[ -s "$MOCK_COUNT" ] && n=$(( $(cat "$MOCK_COUNT") + 1 ))
+printf '%s' "$n" > "$MOCK_COUNT"
+[ "${1:-}" = "--prompt-file" ] && cp "$2" "$MOCK_SEEN.$n"
+case "${MOCK_MODE:-short-then-long}" in
+  short-then-long)    [ "$n" = "1" ] && printf 'これから全文を読み、根拠を揃えます。\n' || python3 -c "print('回答本文 ' * 200)" ;;
+  always-short)       printf 'これから全文を読み、根拠を揃えます。\n' ;;
+  long)               python3 -c "print('回答本文 ' * 200)" ;;
+  short-then-shorter) [ "$n" = "1" ] && printf 'AAAAAAAAAAAAAAAAAAAA\n' || printf 'B\n' ;;
+esac
+SH
+chmod +x "$RETRY_BIN/grok"
+
+COUNT="$TMP/count"; SEEN2="$TMP/seen2"
+run_retry() { # run_retry <MOCK_MODE> [<QUORUM_GROK_RETRY>]
+  : > "$COUNT"; rm -f "$SEEN2".*
+  HOME="$TMP" XAI_API_KEY= PATH="$RETRY_BIN:$PATH" MOCK_COUNT="$COUNT" MOCK_SEEN="$SEEN2" \
+    MOCK_MODE="$1" QUORUM_GROK_RETRY="${2:-1}" bash "$RUN" 2>"$TMP/retry.err" <<< 'ORIGINAL QUESTION'
+}
+
+output="$(run_retry short-then-long)"; rc=$?
+t "メタ応答だけなら1回だけ再投入する" "$([ "$(cat "$COUNT")" = "2" ] && [ "$rc" = "0" ]; echo $?)"
+t "再投入の回答を最終出力にする" "$(printf '%s' "$output" | grep -q '回答本文'; echo $?)"
+t "再投入したことを stderr に残す" "$(grep -q '再投入' "$TMP/retry.err"; echo $?)"
+t "再投入プロンプトに元の問いを保持" "$(grep -q 'ORIGINAL QUESTION' "$SEEN2.2"; echo $?)"
+t "再投入プロンプトに「予告だけの応答は無効」を足す" "$(grep -q '再投入' "$SEEN2.2"; echo $?)"
+t "初回プロンプトには再投入指示を足さない" "$(! grep -q '再投入' "$SEEN2.1"; echo $?)"
+
+output="$(run_retry long)"
+t "十分な長さの回答なら再投入しない" "$([ "$(cat "$COUNT")" = "1" ]; echo $?)"
+
+output="$(run_retry short-then-long 0)"
+t "QUORUM_GROK_RETRY=0 で再投入を止められる" "$([ "$(cat "$COUNT")" = "1" ]; echo $?)"
+
+output="$(run_retry always-short)"; rc=$?
+t "再投入後も短ければ meta-only を stderr へ明示" "$(grep -q 'invalid_response:meta-only' "$TMP/retry.err"; echo $?)"
+t "meta-only でも回答は返す（自動棄却しない）" \
+  "$([ "$rc" = "0" ] && printf '%s' "$output" | grep -q 'これから'; echo $?)"
+verdict="$(printf '%s' "$output" | bash "$REPO/skills/quorum/scripts/check_answer.sh")"
+t "meta-only は check_answer が too_short で拾う" \
+  "$(case "$verdict" in invalid_response:too_short:*) true ;; *) false ;; esac; echo $?)"
+
+output="$(run_retry short-then-shorter)"
+t "再投入が更に短くても初回の回答を失わない" "$(printf '%s' "$output" | grep -q 'AAAAAAAAAA'; echo $?)"
+
+# --- 連続 invalid の警告（check_answer の --backend 連携） ---
+STATE="$TMP/state"
+short="$TMP/meta.md"; printf 'これから読みます。\n' > "$short"
+long2="$TMP/real.md"; python3 -c "print('回答本文 ' * 200)" > "$long2"
+CA="$REPO/skills/quorum/scripts/check_answer.sh"
+
+QUORUM_STATE_DIR="$STATE" bash "$CA" --backend grok "$short" >/dev/null 2>"$TMP/w1.err"
+t "1回目の invalid では警告しない" "$(! grep -q '連続で実質回答なし' "$TMP/w1.err"; echo $?)"
+QUORUM_STATE_DIR="$STATE" bash "$CA" --backend grok "$short" >/dev/null 2>"$TMP/w2.err"
+t "2回連続の invalid で警告する（既定 2）" "$(grep -q 'grok が 2 回連続で実質回答なし' "$TMP/w2.err"; echo $?)"
+t "警告は stderr（stdout は verdict のみ）" \
+  "$([ "$(QUORUM_STATE_DIR="$STATE" bash "$CA" --backend grok "$long2" 2>/dev/null)" = "ok" ]; echo $?)"
+QUORUM_STATE_DIR="$STATE" bash "$CA" --backend grok "$short" >/dev/null 2>"$TMP/w3.err"
+t "実質回答が返ればカウンタは 0 に戻る" "$(! grep -q '連続で実質回答なし' "$TMP/w3.err"; echo $?)"
+QUORUM_STATE_DIR="$STATE" QUORUM_INVALID_WARN=0 bash "$CA" --backend grok "$short" >/dev/null 2>"$TMP/w4.err"
+QUORUM_STATE_DIR="$STATE" QUORUM_INVALID_WARN=0 bash "$CA" --backend grok "$short" >/dev/null 2>>"$TMP/w4.err"
+t "QUORUM_INVALID_WARN=0 で警告を止められる" "$(! grep -q '連続で実質回答なし' "$TMP/w4.err"; echo $?)"
+t "backend ごとに独立して数える" \
+  "$(QUORUM_STATE_DIR="$STATE" bash "$CA" --backend codex "$short" >/dev/null 2>"$TMP/w5.err"; ! grep -q '連続で実質回答なし' "$TMP/w5.err"; echo $?)"
+t "--backend 無指定なら状態ファイルを作らない" \
+  "$(rm -rf "$TMP/state2"; QUORUM_STATE_DIR="$TMP/state2" bash "$CA" "$short" >/dev/null 2>&1; [ ! -e "$TMP/state2/invalid.tsv" ]; echo $?)"
 
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"

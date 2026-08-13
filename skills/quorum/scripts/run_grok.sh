@@ -16,6 +16,10 @@
 #      大型 pack のレビューで4回再発した（IMPROVEMENTS 2026-07-25 ×2 / 07-30 / 08-05）。
 #   2) argv は実行中 ps で全文が見える。API 経路がキー・本文とも argv に載せない
 #      （curl config / 一時ファイル経由）のと規約を揃える。
+#
+# メタ応答リトライ: CLI 経路では、正常終了したのに回答が QUORUM_MIN_ANSWER_BYTES（既定 500）
+# 未満なら「作業予告だけで終わった」とみなして **1回だけ**投げ直す（QUORUM_GROK_RETRY=0 で無効）。
+# 最悪レイテンシは QUORUM_TIMEOUT の2倍になり得る。timeout/argv 上限で落ちた時は投げ直さない。
 set -euo pipefail
 
 # 標準のインストール先を PATH に追加（Claude Code の非ログインシェル対策）
@@ -51,6 +55,14 @@ fi
 TO=""
 command -v timeout >/dev/null 2>&1 && TO="timeout ${QUORUM_TIMEOUT:-300}"
 
+# メタ応答（「これから確認します」型の作業予告だけで正常終了）への再投入時に足す一文。
+# 背景: エージェント型CLIの grok は、重い依頼ほど「作業計画を述べて終わる」挙動に落ちる
+# （IMPROVEMENTS 2026-08-11 / 08-12。同一 pack で codex/opus は完走）。panelist_guard.txt に
+# 「途中報告・メタ発言禁止」は既にあるが**それでも再発する**ため、プロンプトの文言追加ではなく
+# 「短すぎたら1回だけ投げ直す」機械的対策を置く。
+RETRY_NOTE='【再投入・重要】直前の応答は作業予告・途中報告だけで、回答本文が含まれていなかったため無効だった。
+今回の応答に最終回答そのものを全文書き切ること。「これから読みます」「順に確認します」等の予告や作業計画だけの応答は無効とする。'
+
 # --- 方式1: Grok Build CLI（サブスク枠） ---
 if command -v grok >/dev/null 2>&1; then
   # 空の作業ディレクトリで実行する。grok はエージェント型CLIで CWD のファイルを読めるため、
@@ -61,28 +73,69 @@ if command -v grok >/dev/null 2>&1; then
   PROMPT_DIR="$(mktemp -d)"
   trap 'rm -rf "$WORK_DIR" "$PROMPT_DIR"' EXIT
   PROMPT_FILE="$PROMPT_DIR/prompt.md"
-  printf '%s' "$PROMPT" > "$PROMPT_FILE"
+  OUT_FILE="$PROMPT_DIR/answer.txt"
+  BEST_FILE="$PROMPT_DIR/best.txt"
   cd "$WORK_DIR"
 
   MODEL_ARGS=()
   if [ -n "$MODEL" ]; then MODEL_ARGS=(-m "$MODEL"); fi
 
+  USE_PROMPT_FILE=0
   # 本線: --prompt-file（argv 上限なし・ps に本文が出ない）
-  if grok --help 2>/dev/null | grep -q -- '--prompt-file'; then
-    $TO grok --prompt-file "$PROMPT_FILE" "${MODEL_ARGS[@]}"
-    exit $?
+  grok --help 2>/dev/null | grep -q -- '--prompt-file' && USE_PROMPT_FILE=1
+
+  MAX_ARGV_BYTES="${QUORUM_MAX_ARGV_BYTES:-120000}"
+
+  attempt() { # attempt <プロンプト本文> — 回答を $OUT_FILE に書き、CLI の exit code を返す
+    local body="$1" bytes
+    : > "$OUT_FILE"
+    if [ "$USE_PROMPT_FILE" = "1" ]; then
+      printf '%s' "$body" > "$PROMPT_FILE"
+      $TO grok --prompt-file "$PROMPT_FILE" "${MODEL_ARGS[@]}" > "$OUT_FILE"
+      return $?
+    fi
+    # 旧 CLI 向けフォールバック（argv 渡し）。上限超過は「無言の空応答」ではなく明示エラーで
+    # 落とす——空応答のまま返すと judge 側で「回答したが中身が無い」と誤読されるため。
+    bytes="$(printf '%s' "$body" | wc -c | tr -d ' ')"
+    if [ "$bytes" -gt "$MAX_ARGV_BYTES" ]; then
+      echo "[run_grok] invalid_response:argv-too-long — プロンプト ${bytes}B が argv 上限 ${MAX_ARGV_BYTES}B を超過。--prompt-file 対応の grok CLI へ更新してください（grok update）" >&2
+      return 4
+    fi
+    $TO grok -p "$body" "${MODEL_ARGS[@]}" > "$OUT_FILE"
+    return $?
+  }
+
+  rc=0
+  attempt "$PROMPT" || rc=$?
+  cp "$OUT_FILE" "$BEST_FILE"
+
+  # 実質回答なし（作業予告だけ）の判定は check_answer.sh と同じ閾値を使う。
+  # 再投入するのは「CLI 自体は正常終了したのに短い」場合だけ——timeout(124) や
+  # argv 上限(4) は投げ直しても同じ結果になり、待ち時間だけが倍になる。
+  MIN="${QUORUM_MIN_ANSWER_BYTES:-500}"
+  case "$MIN" in ''|*[!0-9]*) MIN=500 ;; esac
+  RETRY="${QUORUM_GROK_RETRY:-1}"
+  case "$RETRY" in ''|*[!0-9]*) RETRY=1 ;; esac
+  BYTES="$(wc -c < "$BEST_FILE" | tr -d ' ')"
+
+  if [ "$rc" = "0" ] && [ "$BYTES" -lt "$MIN" ] && [ "$RETRY" -gt 0 ]; then
+    echo "[run_grok] 応答が ${BYTES}B（閾値 ${MIN}B 未満）でした。作業予告だけの応答とみなし、1回だけ再投入します（QUORUM_GROK_RETRY=0 で無効化）" >&2
+    rc2=0
+    attempt "$PROMPT
+
+$RETRY_NOTE" || rc2=$?
+    BYTES2="$(wc -c < "$OUT_FILE" | tr -d ' ')"
+    # 長い方を採る（再投入が更に短くなっても初回の内容を失わない）
+    if [ "$rc2" = "0" ] && [ "$BYTES2" -gt "$BYTES" ]; then
+      cp "$OUT_FILE" "$BEST_FILE"; BYTES="$BYTES2"; rc=0
+    fi
+    if [ "$BYTES" -lt "$MIN" ]; then
+      echo "[run_grok] invalid_response:meta-only — 再投入後も ${BYTES}B（作業予告のみの疑い）。回答はそのまま返すので judge 側で精査してください" >&2
+    fi
   fi
 
-  # 旧 CLI 向けフォールバック（argv 渡し）。上限超過は「無言の空応答」ではなく明示エラーで
-  # 落とす——空応答のまま返すと judge 側で「回答したが中身が無い」と誤読されるため。
-  PROMPT_BYTES="$(printf '%s' "$PROMPT" | wc -c | tr -d ' ')"
-  MAX_ARGV_BYTES="${QUORUM_MAX_ARGV_BYTES:-120000}"
-  if [ "$PROMPT_BYTES" -gt "$MAX_ARGV_BYTES" ]; then
-    echo "[run_grok] invalid_response:argv-too-long — プロンプト ${PROMPT_BYTES}B が argv 上限 ${MAX_ARGV_BYTES}B を超過。--prompt-file 対応の grok CLI へ更新してください（grok update）" >&2
-    exit 4
-  fi
-  $TO grok -p "$PROMPT" "${MODEL_ARGS[@]}"
-  exit $?
+  cat "$BEST_FILE"
+  exit "$rc"
 fi
 
 # --- 方式2: xAI API（従量課金フォールバック） ---

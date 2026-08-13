@@ -201,6 +201,10 @@ quorum-shell ~/Develop/foo -- --model opus "まず概要を教えて"   # -- 以
 
 単発の欠席は無言でネイティブ補完してよいが、認証切れや CLI 更新による**恒久的な故障**が毎回「一時的な欠席」として処理されると、パネルが静かに同族ネイティブ寄りへ退化して異種ベンダー混合の価値が失われる。opt-out（exit 2）は故障ではないので数えない。状態は `~/.local/share/quorum/absence.tsv`（`QUORUM_STATE_DIR` で変更可）。
 
+### 連続「実質回答なし」の警告
+
+`--check` は通るのに**毎回メタ応答（「これから確認します」だけ）しか返さない**型の故障は、上の欠席カウンタでは捕まらない。`check_answer.sh` に `--backend <name>` を渡して呼ぶと、その backend の連続 `invalid_response` 回数を記録し、既定2回連続で stderr へ警告する（`QUORUM_INVALID_WARN`、`0` で無効。状態は `invalid.tsv`）。実質回答が1回返ればカウンタは 0 に戻る。
+
 ## Grok を使うとき
 
 **推奨：サブスク枠（Grok Build CLI）**
@@ -228,8 +232,10 @@ CLI 経路のプロンプトは **`--prompt-file`（一時ファイル渡し）*
 | `QUORUM_NATIVE` | opus | Claudeホストのネイティブ枠の差し替え（`opus` \| `fable`）。**fable はユーザーの呼びかけ時のみ**（judge と同格でサブスク枠の使用量が大きい。宣言＋`fable_calls.log` 追記が必須）。補完で fable は増殖しない |
 | `QUORUM_TIMEOUT` | 300 | 各外部パネリストの実行時間上限（秒）。run スクリプトに内蔵、超過は欠席扱い |
 | `QUORUM_ABSENCE_WARN` | 3 | opt-in 済みなのに `--check` が通らない状態が何回連続したら stderr へ警告するか。`0` で無効。opt-out（exit 2）は数えない |
-| `QUORUM_STATE_DIR` | `~/.local/share/quorum` | 連続欠席カウンタ（`absence.tsv`）の置き場 |
-| `QUORUM_MIN_ANSWER_BYTES` | 500 | `check_answer.sh` が `too_short` と判定する下限。現状は監査記録のみで自動棄却しない |
+| `QUORUM_STATE_DIR` | `~/.local/share/quorum` | 連続欠席カウンタ（`absence.tsv`）と連続 invalid カウンタ（`invalid.tsv`）の置き場 |
+| `QUORUM_INVALID_WARN` | 2 | 同じ backend の `invalid_response` が何回連続したら stderr へ警告するか（`check_answer.sh --backend <name>` 使用時）。`0` で無効 |
+| `QUORUM_MIN_ANSWER_BYTES` | 500 | `check_answer.sh` が `too_short` と判定する下限。現状は監査記録のみで自動棄却しない。`run_grok.sh` のメタ応答リトライの判定閾値も兼ねる |
+| `QUORUM_GROK_RETRY` | 1 | `run_grok.sh` が正常終了かつ閾値未満の応答を1回だけ投げ直す（`0` で無効）。最悪レイテンシは `QUORUM_TIMEOUT` の2倍 |
 | `QUORUM_MAX_ARGV_BYTES` | 120000 | argv 渡しにフォールバックした時だけ効く上限（`--prompt-file` 非対応の旧 grok CLI 用）。超過は exit 4 |
 | `QUORUM_ENABLE_CLAUDE` | **オフ（未設定=不参加）** | `1`/`true`/`yes` でCodexホストの外部Claudeを参加。Claudeホストでは常に外部Claudeを除外 |
 | `QUORUM_ALLOW_CLAUDE_API` | (未設定) | `ANTHROPIC_API_KEY` 検出時も外部Claudeを許可する明示スイッチ。`1`/`true`/`yes` のみ有効 |

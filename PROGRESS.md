@@ -4,21 +4,24 @@
 
 Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
-2026-08-09 に、利用側で溜まっていた改善メモ（2026-07-16〜08-09 の17件）を正本へ取り込み、汎用ハーネスに効くものを一巡して反映し終えた。**利用側PCへの pull まで完了**し、両PCの `IMPROVEMENTS.md` は同一世代。テストは162件。残タスクは gemini 関連3件と、実運用データ待ちの1件だけ。
+2026-08-13 に、利用側から届いた改善メモ3件（08-11 ×2 / 08-12）を取り込み、grok の**メタ応答（作業予告だけで exit 0）**対策を実装した。テストは181件。残タスクは gemini 関連3件と、実運用データ待ちの1件、判断保留の refuter 工程。
 
 - **利用側からの持ち込みは `git pull && ./install.sh` で受ける**。`IMPROVEMENTS.md` は install が張る symlink 経由でしか正本に届かないので、リポを移動したら install を回し直す（切れていると実運用の追記が正本に入らない。NOTES.md 参照）。
 - **`IMPROVEMENTS.md` は古い順・末尾追記**。並べ替えると全項目 conflict になり、その回の実質的な追記を巻き込んで失う。規約はヘッダ・箇条書き・両SKILLの3箇所にあり、`test_improvements_order.sh` が昇順を機械検査する。
 - **パネルの健全性は detect_panel.sh の stderr で分かる**。opt-in 済み backend が3回連続で欠席すると警告が出る＝パネルが静かに同族ネイティブ寄りへ退化しているサイン。
+- **`--check` は通るのにメタ応答しか返さない故障は別系統で見る**。`check_answer.sh --backend <name>` の連続 `invalid_response` 警告（既定2回・`invalid.tsv`）。absence.tsv とは別ファイル——`--check` が通る以上そちらは毎回リセットされる。
 
 ## 次にやること
 
 - [ ] 実質回答なし検知の第2段（**データ待ち**）: この clone には checks.txt を持つ run が0件で誤棄却の有無を判断できない。運用が溜まったら `scripts/checks_summary.sh` を実行し、閾値付近に実質回答が無ければ run 側の最小バイト数ゲート（欠席扱い）へ格上げする（IMPROVEMENTS 2026-07-13）
+- [ ] **refuter 工程を quorum に新設するか判断する（保留）**: 利用側で mustFix 候補への敵対検証を2体・レンズ分け（データ攻め／論理・規範攻め）で回して効果が出ているが、quorum 側には敵対検証の step が無く（step 5 は fable 再judge）、cadence にも定義が無い。新 step の新設は実走の蓄積を見てから（IMPROVEMENTS 2026-08-11）
 - [ ] gemini/curl経路の実キーE2Eを確認する
 - [ ] gemini APIキーをStandard key→Authorization keyへ移行する（Google公式が2026年9月にStandard key全般を拒否予定と告知。`GEMINI_API_KEY`/`GOOGLE_API_KEY`の環境変数名は不変だが保存済みキー種別の確認が必要。quorumの実装調査は2026-07-15）
 - [ ] **Gemini 3.5 Pro を quorum で試す（2026-07-17 リリース予定以降）**: 課金アカウントに支出上限を設定 → 課金キーで `GEMINI_MODEL=<3.5-pro の正式ID>` を generativelanguage API で実キーE2E → 精度/コストを見て既定 `gemini-2.5-flash` からの昇格可否を判断。無料枠キーでは 2.5-pro 同様 `limit:0` になる想定（課金必須）。agy 経路は #78/#76 未解決のため引き続き見送り
 
 ## 完了
 
+- 2026-08-13: 利用側の改善メモ3件を取り込み、grok のメタ応答対策を実装。①`run_grok.sh` が閾値未満の正常終了を1回だけ投げ直す（`QUORUM_GROK_RETRY`）②`check_answer.sh --backend` で連続 invalid を警告（`--check` は通る型の恒久故障を検出）③両SKILLに「invalid の枠はネイティブ枠で1回補完・縮退を監査証跡へ」④rubric に「証跡の所在 vs 転記」。テスト181件 → [checkpoint](docs/checkpoints/2026-08-13.md)
 - 2026-08-09: `IMPROVEMENTS.md` の並びを規約と一致させた（先頭5項目の反転で全項目を古い順に／ヘッダのコメント・箇条書き・**両SKILL**の3箇所へ「末尾追記」規約を明記／`test_improvements_order.sh` で昇順とヘッダ文言を機械検査）。利用側 mirror の pull で全22項目 conflict が起きた原因。テスト162件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: 利用側から届いた改善メモをトリアージ。新規は1件（grok の E2BIG 無音死）で、①prompt 受け渡しは `--prompt-file` 化で解消済み・③pack サイズ注意は取り下げ・**②空応答時に stderr 先頭行を `invalid_response:empty:<先頭行>` へ転記のみ新規実装**（原因の違う無音死を判別可能に。集計キーは不変）。テスト153件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: 残TODO 3件を処理。①codex の collab を `--disable multi_agent` で恒久無効化（機能フラグを実機特定）②opt-in 済み backend の連続欠席を stderr へ警告（`--check` に「2=意図的に不参加」を新設して opt-out と区別）③`checks_summary.sh` で誤棄却レビューを1コマンド化。テスト146件 → [checkpoint](docs/checkpoints/2026-08-09.md)

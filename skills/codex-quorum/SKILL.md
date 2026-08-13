@@ -31,7 +31,8 @@ description: 高ステークスかつ広さ・盲点リスクが支配的な問�
 4. 起動直後、どの回答も読む前に、judge 自身の暫定結論と主根拠を `precommit.md` に保存する。
 5. 各成功回答の全文を匿名の `answer_<label>.md` に保存する。パネリスト間で回答を共有しない。timeout・空応答・失敗は dropped として記録し、成功分で続行する。成功回答が0件になった場合（特に `QUORUM_PANEL` 明示時の全滅）は judge へ進まず中断して報告する。
 6. 外部 `run_*.sh` はパネリスト専用ガード（単一回答者・quorum再実行/fan-out/collab禁止。正本 `scripts/panelist_guard.txt`）をプロンプト先頭に自動前置する。SKILL 側での付与は不要で、`prompt.md` には元の `$PROMPT` を保存する。
-7. **回収後の軽量検査（監査記録・自動棄却しない）**: 外部バックエンドの各回答は保存後に `bash "$SKILL_DIR/scripts/check_answer.sh" "$RUN_DIR/answer_<label>.md" "$RUN_DIR/answer_<label>.err"` に通す（既知パターン以外の空応答は `empty:<stderr先頭行>` として原因が転記される）。`invalid_response:<reason>` が出たら `$RUN_DIR/checks.txt` に `<label>\t<verdict>` を追記し、judge が「実質回答なしの疑い」として精査する（採用理由か dropped 判定を監査証跡に明記）。exit 0・非空でも成功と見なさない。
+7. **回収後の軽量検査（監査記録・自動棄却しない）**: 外部バックエンドの各回答は保存後に `bash "$SKILL_DIR/scripts/check_answer.sh" --backend <backend> "$RUN_DIR/answer_<label>.md" "$RUN_DIR/answer_<label>.err"` に通す（既知パターン以外の空応答は `empty:<stderr先頭行>` として原因が転記される）。`invalid_response:<reason>` が出たら `$RUN_DIR/checks.txt` に `<label>\t<verdict>` を追記し、judge が「実質回答なしの疑い」として精査する（採用理由か dropped 判定を監査証跡に明記）。exit 0・非空でも成功と見なさない。
+8. **`invalid_response` の枠は `codex-native` で1回だけ補完する**。同じ `$PROMPT` を独立サブエージェントへ投げ直し、`codex-native#N（<backend> 枠の補完）` として mapping.txt と監査証跡に明示する。補完しない判断をした時も、パネルが縮んだ事実を監査証跡に書く（幅の黙った縮退を防ぐ）。`--backend` 指定時は同じ backend が2回連続で `invalid_response` になると stderr へ警告が出る（`QUORUM_INVALID_WARN` 既定2）——`--check` は通るのにメタ応答しか返さない型の恒久故障なので、出たら「恒久故障の疑い」として監査証跡に明記しユーザーへ伝える。
 
 ネイティブ・サブエージェントの同時実行数が環境上限に達した場合、起動できない枠を dropped にして続行する。再帰的な子の spawn は許可しない。
 
