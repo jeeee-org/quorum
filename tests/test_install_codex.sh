@@ -32,6 +32,40 @@ CLAUDE_CONFIG_DIR="$CLAUDE" CODEX_HOME="$CODEX" BIN_DIR="$BIN" bash "$REPO/insta
 t "再インストールでマーカーが増殖しない" "$([ "$(grep -c 'quorum-triage:begin' "$CODEX/AGENTS.md")" = "1" ]; echo $?)"
 t "再インストール後もユーザー記述を保持" "$(grep -q '保持する行' "$CODEX/AGENTS.md"; echo $?)"
 
+# --- Codex版の配置を省ける（IMPROVEMENTS 2026-08-15） ---
+# パネリストとしての codex CLI と、メインエージェントとしての Codex は別物。前者だけ使うPCで
+# 後者の配置を止める口が無く、呼び出し側が後から消す羽目になっていた。
+for mode in env flag; do
+  C2="$TMP/skip_$mode"; mkdir -p "$C2/codex"
+  printf '# 既存\n' > "$C2/codex/AGENTS.md"
+  if [ "$mode" = "env" ]; then
+    QUORUM_INSTALL_CODEX=0 CLAUDE_CONFIG_DIR="$C2/claude" CODEX_HOME="$C2/codex" BIN_DIR="$C2/bin" \
+      bash "$REPO/install.sh" >/dev/null 2>&1
+  else
+    CLAUDE_CONFIG_DIR="$C2/claude" CODEX_HOME="$C2/codex" BIN_DIR="$C2/bin" \
+      bash "$REPO/install.sh" --no-codex >/dev/null 2>&1
+  fi
+  t "[$mode] Codex版スキルを配置しない" "$([ ! -e "$C2/codex/skills/quorum" ]; echo $?)"
+  t "[$mode] AGENTS.md にトリアージブロックを足さない" \
+    "$(! grep -q 'quorum-triage:begin' "$C2/codex/AGENTS.md"; echo $?)"
+  t "[$mode] AGENTS.md の既存記述に触らない" "$(grep -q '既存' "$C2/codex/AGENTS.md"; echo $?)"
+  t "[$mode] Claude側は通常どおり配置する" "$([ -f "$C2/claude/skills/quorum/SKILL.md" ]; echo $?)"
+  t "[$mode] コマンドも通常どおり配置する" "$([ -f "$C2/claude/commands/quorum.md" ]; echo $?)"
+done
+
+# 既存の配置は自動削除せず、残っていることを知らせる（env 1つでユーザーのファイルを削らない）
+C3="$TMP/skip_existing"; mkdir -p "$C3/codex/skills/quorum"
+printf 'stale\n' > "$C3/codex/skills/quorum/SKILL.md"
+err="$(QUORUM_INSTALL_CODEX=0 CLAUDE_CONFIG_DIR="$C3/claude" CODEX_HOME="$C3/codex" BIN_DIR="$C3/bin" \
+  bash "$REPO/install.sh" 2>&1 >/dev/null)"
+t "スキップ時も既存のCodex配置を自動削除しない" "$([ -f "$C3/codex/skills/quorum/SKILL.md" ]; echo $?)"
+t "残存を知らせ、消し方を示す" "$(printf '%s' "$err" | grep -q 'rm -rf'; echo $?)"
+
+# 不明な引数は弾く
+CLAUDE_CONFIG_DIR="$TMP/bad/claude" CODEX_HOME="$TMP/bad/codex" BIN_DIR="$TMP/bad/bin" \
+  bash "$REPO/install.sh" --nope >/dev/null 2>&1
+t "不明な引数は exit 2" "$([ "$?" = "2" ]; echo $?)"
+
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]
