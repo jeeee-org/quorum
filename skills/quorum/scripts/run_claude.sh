@@ -41,6 +41,14 @@ if [ "${1:-}" = "--check" ]; then
   exit 0
 fi
 
+# バックエンド CLI の版を1行で申告する（規約: run_<name>.sh --version）。detect_panel.sh が
+# 記録し、前回から変わっていたら警告する（IMPROVEMENTS 2026-08-15）。
+if [ "${1:-}" = "--version" ]; then
+  command -v claude >/dev/null 2>&1 || { echo "unavailable"; exit 0; }
+  claude --version 2>/dev/null | head -n 1 || echo "unknown"
+  exit 0
+fi
+
 PROMPT="$(cat)"
 
 # パネリスト専用ガードを固定前置する（再帰 fan-out・collab 呼び出し・メタ応答の系統的

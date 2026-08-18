@@ -190,6 +190,54 @@ t "backend ごとに独立して数える" \
 t "--backend 無指定なら状態ファイルを作らない" \
   "$(rm -rf "$TMP/state2"; QUORUM_STATE_DIR="$TMP/state2" bash "$CA" "$short" >/dev/null 2>&1; [ ! -e "$TMP/state2/invalid.tsv" ]; echo $?)"
 
+# --- エージェント挙動を CLI 側で落とす（IMPROVEMENTS 2026-08-15） ---
+# plan mode が有効だと非対話の単発実行は「計画を述べた時点で正常終了」する。観測された
+# メタ応答は plan そのものの形だった。プロンプト側の文言強化は 9 run ぶん効かなかったので
+# CLI のオプションで落とす。存在する時だけ渡す（旧 CLI のマシンを壊さない）。
+GUARD_BIN="$TMP/bin-guard"; mkdir -p "$GUARD_BIN"
+cat > "$GUARD_BIN/grok" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--help" ]; then
+  printf 'Options:\n  -p, --single <PROMPT>\n      --prompt-file <PATH>\n      --no-plan\n          Disable plan mode\n      --no-subagents\n          Disable subagent spawning\n'
+  exit 0
+fi
+[ -n "${MOCK_ARGS:-}" ] && printf '%s\n' "$@" > "$MOCK_ARGS"
+printf 'mock grok answer\n'
+SH
+chmod +x "$GUARD_BIN/grok"
+
+# HOME を temp に振るのは必須——run_grok.sh は $HOME/.local/bin を PATH 先頭に足すので、
+# 隔離しないと実 CLI が mock より優先され、テストが実 API を叩いてしまう。
+rm -f "$ARGS"
+printf 'q' | HOME="$TMP" XAI_API_KEY= PATH="$GUARD_BIN:$PATH" MOCK_ARGS="$ARGS" bash "$RUN" >/dev/null 2>&1
+t "--help にあれば --no-plan を渡す" "$(grep -qx -- '--no-plan' "$ARGS"; echo $?)"
+t "--help にあれば --no-subagents を渡す" "$(grep -qx -- '--no-subagents' "$ARGS"; echo $?)"
+t "ガード追加後も --prompt-file の直後がパスのまま" \
+  "$([ "$(sed -n '1p' "$ARGS")" = "--prompt-file" ] \
+    && case "$(sed -n '2p' "$ARGS")" in ''|--*) false ;; *) true ;; esac; echo $?)"
+
+rm -f "$ARGS"
+printf 'q' | HOME="$TMP" XAI_API_KEY= PATH="$NEW_BIN:$PATH" MOCK_ARGS="$ARGS" bash "$RUN" >/dev/null 2>&1
+t "--help に無い旧CLIには渡さない（壊さない）" \
+  "$([ -f "$ARGS" ] && ! grep -qx -- '--no-plan' "$ARGS" && ! grep -qx -- '--no-subagents' "$ARGS"; echo $?)"
+
+# --- --version 規約（detect_panel が版の変化を知らせるための申告） ---
+cat > "$GUARD_BIN/grok-ver" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = "--version" ] && { echo "grok 9.9.9 (mock)"; exit 0; }
+SH
+out="$(HOME="$TMP" PATH="$GUARD_BIN:$PATH" bash "$RUN" --version </dev/null 2>/dev/null)"
+t "--version は CLI の版を1行返す" \
+  "$([ -n "$out" ] && [ "$(printf '%s\n' "$out" | wc -l)" = "1" ]; echo $?)"
+
+# grok の無い最小 PATH（PATH を空にすると bash 自体が引けないので coreutils は残す）。
+# HOME も temp なので run_grok.sh が足す $HOME/.local/bin / $HOME/.grok/bin も空になる。
+out="$(HOME="$TMP" PATH="/usr/bin:/bin" bash "$RUN" --version </dev/null 2>/dev/null)"
+t "CLI が無ければ unavailable を返す（固まらない）" "$([ "$out" = "unavailable" ]; echo $?)"
+
+t "--version は stdin を消費しない（プロンプトを読みに行かない）" \
+  "$(printf 'x' | HOME="$TMP" PATH="$GUARD_BIN:$PATH" timeout 15 bash "$RUN" --version >/dev/null 2>&1; echo $?)"
+
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

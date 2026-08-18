@@ -32,6 +32,14 @@ if [ "${1:-}" = "--check" ]; then
   exit 1
 fi
 
+# バックエンド CLI の版を1行で申告する（規約: run_<name>.sh --version）。detect_panel.sh が
+# 記録し、前回から変わっていたら警告する（IMPROVEMENTS 2026-08-15）。
+if [ "${1:-}" = "--version" ]; then
+  command -v gemini >/dev/null 2>&1 || { echo "unavailable"; exit 0; }
+  gemini --version 2>/dev/null | head -n 1 || echo "unknown"
+  exit 0
+fi
+
 MODEL="${GEMINI_MODEL:-gemini-2.5-flash}"
 PROMPT="$(cat)"
 

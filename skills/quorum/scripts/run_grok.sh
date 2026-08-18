@@ -8,7 +8,12 @@
 #
 # 学習オフ: grok.com の Settings > Data で「Improve the model」をオフにする（アカウント単位）。
 # 検証: grok-cli 0.2.51（-p / --single）、Grok Build CLI の `--prompt-file`（2026-08-09 実機E2E。
-#       248KB の pack でも欠落なく通ることを確認）。
+#       248KB の pack でも欠落なく通ることを確認）、Grok Build CLI 1.0.5（2026-08-18。
+#       `--no-plan` / `--no-subagents` / `--prompt-file` の存在と既定モデル grok-4.6 を実機確認）。
+#
+# モデルは指定しない（`GROK_MODEL` 未設定なら `-m` を渡さない）。CLI 既定が最新世代を指すので、
+# ここで固定するとモデル更新のたびに置き去りになる（2026-08-18 時点の既定は grok-4.6）。
+# 特定世代に固定したい時だけ `GROK_MODEL=grok-4.5` のように明示する。
 #
 # プロンプトは argv に載せない（`--prompt-file` を使う）。理由は2つ:
 #   1) 単一引数長の上限（Linux の MAX_ARG_STRLEN ≒ 128KB。ARG_MAX 2MB とは別物）を超えると
@@ -20,6 +25,20 @@
 # メタ応答リトライ: CLI 経路では、正常終了したのに回答が QUORUM_MIN_ANSWER_BYTES（既定 500）
 # 未満なら「作業予告だけで終わった」とみなして **1回だけ**投げ直す（QUORUM_GROK_RETRY=0 で無効）。
 # 最悪レイテンシは QUORUM_TIMEOUT の2倍になり得る。timeout/argv 上限で落ちた時は投げ直さない。
+#
+# `--no-plan`（plan mode の無効化）: エージェント型CLIは既定で「計画を立てて承認を待つ」ため、
+# 非対話の単発実行では**計画を述べた時点で正常終了する**。観測された「〜を読み、〜します」だけの
+# メタ応答は plan そのものの形と一致していた（IMPROVEMENTS 2026-08-15）。プロンプト側の文言強化
+# （panelist_guard の「メタ発言禁止」・出力形式の明示・節構成の固定）は 9 run ぶん試して**すべて
+# 無効**だったので、CLI のオプションで落とす。
+# ただし `--no-plan` は**決定打ではない**——導入後も同型の欠席が再発しており（08-15 同日3度目・
+# 08-17）、発生頻度を下げる緩和として扱う。回復は check_answer.sh 側の検査と SKILL の補完で担保する。
+#
+# `--no-subagents`（サブエージェント spawn の無効化）: panelist_guard.txt の「fan-out/サブエージェント
+# 禁止」を CLI 側でも機械的に担保する（run_codex.sh の `--disable multi_agent` と同じ趣旨）。
+# プロンプトのガードは残す——フラグ名も存在も CLI バージョン次第で変わるため二重の歯止めにする。
+#
+# どちらも `--help` に出る時だけ渡す（旧 CLI のマシンで壊さない。`--prompt-file` と同じ判定方式）。
 set -euo pipefail
 
 # 標準のインストール先を PATH に追加（Claude Code の非ログインシェル対策）
@@ -37,6 +56,17 @@ if [ "${1:-}" = "--check" ]; then
   command -v grok >/dev/null 2>&1 && exit 0
   { [ -n "${XAI_API_KEY:-}" ] && command -v curl >/dev/null 2>&1; } && exit 0
   exit 1
+fi
+
+# バックエンド CLI の版を1行で申告する（規約: run_<name>.sh --version）。
+# detect_panel.sh が記録し、前回から変わっていたら警告する。外部 CLI をパネリストに使う以上、
+# CLI 側の仕様変更（オプションの増減・既定モデルの世代交代）をハーネスが検知できないと、
+# プロンプト側だけを疑い続ける遠回りが起きる（IMPROVEMENTS 2026-08-15: plan mode が原因なのに
+# 9 run ぶんプロンプトを直し続け、`--help` を読み直した run が1つも無かった）。
+if [ "${1:-}" = "--version" ]; then
+  command -v grok >/dev/null 2>&1 || { echo "unavailable"; exit 0; }
+  grok --version 2>/dev/null | head -n 1 || echo "unknown"
+  exit 0
 fi
 
 MODEL="${GROK_MODEL:-}"
@@ -80,9 +110,17 @@ if command -v grok >/dev/null 2>&1; then
   MODEL_ARGS=()
   if [ -n "$MODEL" ]; then MODEL_ARGS=(-m "$MODEL"); fi
 
+  # --help は1回だけ取る（オプション判定を毎回 fork しない）
+  GROK_HELP="$(grok --help 2>/dev/null || true)"
+
   USE_PROMPT_FILE=0
   # 本線: --prompt-file（argv 上限なし・ps に本文が出ない）
-  grok --help 2>/dev/null | grep -q -- '--prompt-file' && USE_PROMPT_FILE=1
+  printf '%s' "$GROK_HELP" | grep -q -- '--prompt-file' && USE_PROMPT_FILE=1
+
+  # 非対話の単発実行に不要なエージェント挙動を CLI 側で落とす（存在する時だけ渡す）
+  GUARD_ARGS=()
+  printf '%s' "$GROK_HELP" | grep -q -- '--no-plan'      && GUARD_ARGS+=(--no-plan)
+  printf '%s' "$GROK_HELP" | grep -q -- '--no-subagents' && GUARD_ARGS+=(--no-subagents)
 
   MAX_ARGV_BYTES="${QUORUM_MAX_ARGV_BYTES:-120000}"
 
@@ -91,7 +129,7 @@ if command -v grok >/dev/null 2>&1; then
     : > "$OUT_FILE"
     if [ "$USE_PROMPT_FILE" = "1" ]; then
       printf '%s' "$body" > "$PROMPT_FILE"
-      $TO grok --prompt-file "$PROMPT_FILE" "${MODEL_ARGS[@]}" > "$OUT_FILE"
+      $TO grok --prompt-file "$PROMPT_FILE" "${GUARD_ARGS[@]+"${GUARD_ARGS[@]}"}" "${MODEL_ARGS[@]}" > "$OUT_FILE"
       return $?
     fi
     # 旧 CLI 向けフォールバック（argv 渡し）。上限超過は「無言の空応答」ではなく明示エラーで
@@ -101,7 +139,7 @@ if command -v grok >/dev/null 2>&1; then
       echo "[run_grok] invalid_response:argv-too-long — プロンプト ${bytes}B が argv 上限 ${MAX_ARGV_BYTES}B を超過。--prompt-file 対応の grok CLI へ更新してください（grok update）" >&2
       return 4
     fi
-    $TO grok -p "$body" "${MODEL_ARGS[@]}" > "$OUT_FILE"
+    $TO grok -p "$body" "${GUARD_ARGS[@]+"${GUARD_ARGS[@]}"}" "${MODEL_ARGS[@]}" > "$OUT_FILE"
     return $?
   }
 
@@ -139,7 +177,9 @@ $RETRY_NOTE" || rc2=$?
 fi
 
 # --- 方式2: xAI API（従量課金フォールバック） ---
-API_MODEL="${GROK_MODEL:-grok-4.5}"
+# API は CLI と違って既定モデルに委ねられない（model が必須）ので、ここだけ世代を明示する。
+# CLI 側の既定が上がったらここも上げる（2026-08-18: grok-4.6 を `grok models` で確認）。
+API_MODEL="${GROK_MODEL:-grok-4.6}"
 : "${XAI_API_KEY:?grok CLI も XAI_API_KEY も無し（どちらかが必要）}"
 command -v curl    >/dev/null 2>&1 || { echo "[run_grok] curl が必要です" >&2; exit 127; }
 command -v python3 >/dev/null 2>&1 || { echo "[run_grok] python3 が必要です" >&2; exit 127; }

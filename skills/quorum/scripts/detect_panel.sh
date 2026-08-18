@@ -3,6 +3,7 @@
 #
 # 規約: scripts/ 配下の `run_<name>.sh` が1バックエンド。
 #   - `run_<name>.sh --check` … 0=可用 / 2=意図的に不参加（opt-out）/ その他非0=参加したいのに使えない
+#   - `run_<name>.sh --version` … その backend の CLI 版を1行で申告（任意。未対応でも壊れない）
 #   - `run_<name>.sh`（引数なし）… プロンプトを stdin で受け、回答を stdout へ
 # 新しいモデルを足したい時は、この規約に従う run_<name>.sh を置くだけでよい。
 # ネイティブ枠はスクリプトではなく、ホストのサブエージェント機構で spawn する。
@@ -34,6 +35,8 @@
 #                           警告するか（既定 3。0 で無効）。状態は
 #                           $QUORUM_STATE_DIR（既定 ~/.local/share/quorum）/absence.tsv。
 #                           opt-out（exit 2）は故障ではないので数えない。
+#   QUORUM_VERSION_WATCH    参加する backend の CLI 版を記録し、前回から変わっていたら stderr へ
+#                           知らせる（既定 1。0 で無効）。状態は $QUORUM_STATE_DIR/versions.tsv。
 # フラグ:
 #   --raw  補完せず「利用可能な distinct バックエンド」だけを出力（デバッグ/テスト用）。
 set -euo pipefail
@@ -166,6 +169,68 @@ record_absence() {
   sort -o "$tmp" "$tmp" && mv "$tmp" "$file" 2>/dev/null || rm -f "$tmp"
 }
 record_absence
+
+# バックエンド CLI の版を記録し、変化したら知らせる（IMPROVEMENTS 2026-08-15）
+#
+# 外部 CLI をパネリストに使うハーネスは、**CLI 自身のバージョンとオプションを定期的に読み直す
+# 必要がある**。grok が「作業予告だけ返す」不調に陥った時、原因は plan mode（`--no-plan` で
+# 抑止できる）だったのに、9 run ぶんの試行錯誤がすべてプロンプト側で行われ、`--help` を読み
+# 直した run が1つも無かった。版が動いたことを知らせれば、その回に `--help` を見直す動機になる。
+# 判定は変えない（stdout はパネル multiset のまま）——気づきの機会を stderr に置くだけ。
+record_versions() {
+  local watch="${QUORUM_VERSION_WATCH:-1}"
+  case "$watch" in 0|false|no) return 0 ;; esac
+  [ "${#externals[@]}" -gt 0 ] || return 0
+
+  local state_dir="${QUORUM_STATE_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/quorum}"
+  local file="$state_dir/versions.tsv"
+  mkdir -p "$state_dir" 2>/dev/null || return 0
+
+  local -A prev
+  if [ -r "$file" ]; then
+    local n v
+    while IFS=$'\t' read -r n v; do
+      [ -n "${n:-}" ] || continue
+      prev["$n"]="${v:-}"
+    done < "$file"
+  fi
+
+  # 版の申告に時間をかける理由はない。timeout が無い環境では素で呼ぶ（</dev/null が主防御）。
+  local VERSION_TO=""
+  command -v timeout >/dev/null 2>&1 && VERSION_TO="timeout ${QUORUM_VERSION_TIMEOUT:-10}"
+
+  local -A now
+  local name ver
+  for name in "${externals[@]}"; do
+    # `--version` は任意の規約。未対応のスクリプトは引数を無視して stdin を読みに行くので、
+    # **必ず </dev/null で塞ぐ**（塞がないと probe がプロンプト待ちで固まる）。
+    # timeout があれば更に短く打ち切る——版の申告に時間をかける理由がない。
+    ver="$($VERSION_TO bash "$SCRIPT_DIR/run_$name.sh" --version </dev/null 2>/dev/null | head -n 1 | tr '\t' ' ' || true)"
+    [ -n "$ver" ] || ver="unknown"
+    now["$name"]="$ver"
+    # 初回（記録なし）は知らせない。変化した時だけ出す。
+    if [ -n "${prev[$name]:-}" ] && [ "${prev[$name]}" != "$ver" ]; then
+      echo "[quorum] 注意: $name の CLI 版が変わりました（${prev[$name]} → ${ver}）。挙動が変わっている可能性があります——\`$name --help\` を読み直し、非対話実行に効くオプション（例: plan mode やサブエージェントの無効化）が増減していないか確認してください。監査証跡にこの版を書き残すこと。" >&2
+    fi
+  done
+
+  # 記録は「今回見た backend」だけ更新し、他の行は残す
+  local tmp; tmp="$(mktemp)" || return 0
+  if [ -r "$file" ]; then
+    local keep=1 n2 v2
+    while IFS=$'\t' read -r n2 v2; do
+      [ -n "${n2:-}" ] || continue
+      [ -n "${now[$n2]:-}" ] && continue
+      printf '%s\t%s\n' "$n2" "$v2" >> "$tmp"
+    done < "$file"
+    : "$keep"
+  fi
+  for name in "${!now[@]}"; do
+    printf '%s\t%s\n' "$name" "${now[$name]}" >> "$tmp"
+  done
+  sort -o "$tmp" "$tmp" && mv "$tmp" "$file" 2>/dev/null || rm -f "$tmp"
+}
+record_versions
 
 # distinct な利用可能パネル = native + externals
 panel=("$NATIVE")

@@ -152,6 +152,51 @@ t "QUORUM_PANEL でcodex-nativeの増員はできる" \
   "$(printf 'codex-native\ncodex-native\ngrok')" \
   "$(QUORUM_HOST=codex QUORUM_PANEL="codex-native,codex-native,grok" bash "$TMP/explicit-codex/detect_panel.sh")"
 
+# --- backend CLI の版を記録し、変化したら知らせる（IMPROVEMENTS 2026-08-15） ---
+# 背景: grok の不調の原因は plan mode（CLI 側）だったのに、9 run ぶんの試行錯誤がすべて
+# プロンプト側で行われ、`--help` を読み直した run が1つも無かった。版が動いたことを知らせる。
+mk_ver_env() { # mk_ver_env <dir> <version文字列>
+  local d="$1" v="$2"
+  mkdir -p "$d"; cp "$DETECT" "$d/"
+  printf '#!/usr/bin/env bash\n[ "${1:-}" = "--check" ] && exit 0\n[ "${1:-}" = "--version" ] && { echo "%s"; exit 0; }\ncat >/dev/null\n' \
+    "$v" > "$d/run_grok.sh"
+}
+
+VST="$TMP/vstate"; rm -rf "$VST"
+mk_ver_env "$TMP/ver" "grok 1.0.0"
+err="$(QUORUM_STATE_DIR="$VST" bash "$TMP/ver/detect_panel.sh" 2>&1 >/dev/null)"
+t "初回は版を知らせない（比較対象が無い）" "" "$err"
+t "版を versions.tsv に記録する" "grok 1.0.0" "$(awk -F'\t' '$1=="grok"{print $2}' "$VST/versions.tsv")"
+
+err="$(QUORUM_STATE_DIR="$VST" bash "$TMP/ver/detect_panel.sh" 2>&1 >/dev/null)"
+t "版が同じなら知らせない" "" "$err"
+
+mk_ver_env "$TMP/ver2" "grok 1.0.5"
+err="$(QUORUM_STATE_DIR="$VST" bash "$TMP/ver2/detect_panel.sh" 2>&1 >/dev/null)"
+t "版が変わったら stderr で知らせる" "0" \
+  "$(printf '%s' "$err" | grep -q 'CLI 版が変わりました'; echo $?)"
+t "変化の通知は新旧の版を含む" "0" \
+  "$(printf '%s' "$err" | grep -q '1.0.0' && printf '%s' "$err" | grep -q '1.0.5'; echo $?)"
+t "変化の通知は --help の読み直しを促す" "0" \
+  "$(printf '%s' "$err" | grep -q -- '--help'; echo $?)"
+t "通知後は新しい版で記録を更新する" "grok 1.0.5" \
+  "$(awk -F'\t' '$1=="grok"{print $2}' "$VST/versions.tsv")"
+
+t "stdout はパネル multiset のまま（通知は stderr 側）" \
+  "$(printf 'opus\ngrok\nopus')" \
+  "$(QUORUM_STATE_DIR="$VST" bash "$TMP/ver2/detect_panel.sh" 2>/dev/null)"
+
+VST2="$TMP/vstate2"; rm -rf "$VST2"
+err="$(QUORUM_VERSION_WATCH=0 QUORUM_STATE_DIR="$VST2" bash "$TMP/ver2/detect_panel.sh" 2>&1 >/dev/null)"
+t "QUORUM_VERSION_WATCH=0 で記録も通知も止める" "$([ ! -f "$VST2/versions.tsv" ]; echo 0)" "0"
+
+# --version 未対応の run スクリプトでも固まらない（stdin を塞いでいるか）
+# 未対応スクリプトは引数を無視して stdin を読むので、塞がないと probe が待ちに入る。
+VST3="$TMP/vstate3"; rm -rf "$VST3"
+mk_env "$TMP/nover" grok:0   # mk_env のモックは --version を実装していない
+QUORUM_STATE_DIR="$VST3" timeout 20 bash "$TMP/nover/detect_panel.sh" >/dev/null 2>&1
+t "--version 未対応の backend でも固まらない" "0" "$?"
+
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]
