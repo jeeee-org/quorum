@@ -103,12 +103,15 @@ IMPROVEMENTS.md に書く改善メモの証拠として使える。
 ```bash
 cd ~/Develop/quorum
 ./install.sh                 # ~/.claude と $CODEX_HOME の両方へ
+./install.sh --no-codex      # Codex版を配置しない（Codexをメインに使わないPC）
 # 別ディレクトリなら:
 # CLAUDE_CONFIG_DIR=/path/.claude CODEX_HOME=/path/.codex ./install.sh
 ```
 完了後、Claude Code は再起動または `/reload-skills`。Codexで反映されない場合は再起動する。
 
 `install.sh` は **このリポジトリの内容を各マシンの `~/.claude`・`$CODEX_HOME`・`~/.local/bin` に展開する**もの。Codex版は共有 scripts/references に専用 `SKILL.md` を重ねて `$CODEX_HOME/skills/quorum` に組み立てる。配置物は生成物なので Git には入れない。
+
+**Codex をメインエージェントに使わないPCでは `--no-codex`（または `QUORUM_INSTALL_CODEX=0`）**。`$CODEX_HOME/skills/quorum` と `AGENTS.md` のトリアージブロックを丸ごと省く。**パネリストとしての codex CLI は別物**で、`QUORUM_ENABLE_CODEX=1` があれば従来どおり参加する。既存の配置は安全のため自動削除しないので、初回だけ表示される `rm -rf` を手で実行する。
 
 ## 別PCでのセットアップ（移植）
 
@@ -192,6 +195,8 @@ quorum-shell ~/Develop/foo -- --model opus "まず概要を教えて"   # -- 以
 2. `run_<name>.sh`（引数なし）… プロンプトを **stdin** で受け、回答全文を **stdout** へ
 3. 任意で `QUORUM_TIMEOUT` を尊重（`command -v timeout` があれば `timeout "${QUORUM_TIMEOUT:-300}"` でラップ）
 4. **プロンプトを argv に展開しない**（stdin か一時ファイル渡しにする）。単一引数長の上限（Linux の `MAX_ARG_STRLEN` ≒ 128KB。`ARG_MAX` 2MB とは別物）を超えると exec が `Argument list too long` で失敗し、**exit 0・空応答**でそのパネリストが無言で欠席する。実装レビュー型の大型 pack では確実に踏む（grok で4回再発 → `--prompt-file` へ移行済み）。argv は実行中 `ps` で全文が見える点でも避ける
+5. 任意で `run_<name>.sh --version` … その backend の CLI 版を**1行**で stdout へ（CLI が無ければ `unavailable`）。`detect_panel.sh` が記録して版の変化を知らせる。**未対応でも壊れないが、対応するなら stdin を読みに行かないこと**（probe は `</dev/null` で塞いでいるが、`--version` を無視して `cat` に落ちる実装は空プロンプトを掴む）
+6. **非対話の単発実行に不要なエージェント挙動は CLI 側で落とす**。plan mode・サブエージェント spawn は「計画を述べて正常終了」「子プロセスの spawn 失敗で固まる」を招く。`--help` に該当オプションがあるか probe して、ある時だけ渡す（grok の `--no-plan` / `--no-subagents`、codex の `--disable multi_agent`）。**プロンプト側のガードは残す**——フラグ名も存在も CLI バージョン次第で変わるため二重の歯止めにする
 
 `detect_panel.sh` が `run_*.sh` を自動ディスカバリして `--check` で取捨し、fan-out は `<name>` をそのまま使う。
 
@@ -205,6 +210,26 @@ quorum-shell ~/Develop/foo -- --model opus "まず概要を教えて"   # -- 以
 
 `--check` は通るのに**毎回メタ応答（「これから確認します」だけ）しか返さない**型の故障は、上の欠席カウンタでは捕まらない。`check_answer.sh` に `--backend <name>` を渡して呼ぶと、その backend の連続 `invalid_response` 回数を記録し、既定2回連続で stderr へ警告する（`QUORUM_INVALID_WARN`、`0` で無効。状態は `invalid.tsv`）。実質回答が1回返ればカウンタは 0 に戻る。
 
+**この警告は「今回は補完せよ」であって「次回から外せ」ではない。** 6 run 連続で欠席した後に 17KB の実質回答を返し、その回で**単独でしか出ない高重大度の指摘を4件**出した実例がある。この型の不調は run ごとに揺れるので、連続欠席を根拠にパネルから外すと「効いているパネリスト」を失う。疑うのは backend ではなく**認証・CLI 版・オプション**。
+
+### 実質回答なしの検知（バイト数だけでは塞がらない）
+
+`check_answer.sh` は空・極端な短文に加えて、**中身**でも判定する。バイト数だけの検査は「閾値を超えた作業予告」を素通しし、実際に 588B の予告が `ok` を通り抜けた。閾値を上げる対処は**正当な短答を殺す**ので採らない。
+
+| 判定 | exit | 何を見るか |
+|---|---|---|
+| `invalid_response:missing_expected:<語>` | 3 | `--expect <語>`（繰り返し可）で渡した語が1つも現れない。**OR 判定**なので章立ての違いでは落ちない |
+| `invalid_response:plan_only` | 3 | 構造マーカー（見出し・箇条書き・コードフェンス・表）が皆無 かつ 全行が「〜を読み、〜します」型の予告文。誤検知を避けるため `QUORUM_PLAN_ONLY_MAX_BYTES`（既定 3000）以下にのみ適用 |
+| `truncated_suspect:{midsentence,heading,unclosed_fence}` | **4** | 回答はあるが末尾が切れている疑い。17KB の回答が節の途中で切れていた実例がある |
+
+`truncated_suspect` は **`invalid_response` とは別系統（exit 4）**。「実質回答なし」ではないので補完で置き換えず、切れた範囲を明記して読める分は採用する。連続 invalid カウンタにも数えない（backend は回答している）。
+
+### backend CLI の版の変化を知らせる
+
+`detect_panel.sh` は参加する backend の CLI 版を `versions.tsv` に記録し、**前回から変わっていたら stderr で知らせる**（`QUORUM_VERSION_WATCH=0` で無効）。各 backend は `run_<name>.sh --version` で1行申告する（任意の規約。未対応でも壊れない）。
+
+外部 CLI をパネリストに使うハーネスは、**CLI 自身のバージョンとオプションを定期的に読み直す必要がある**。grok が「作業予告だけ返す」不調に陥った時、原因は plan mode（`--no-plan` で抑止できる）だったのに、9 run ぶんの試行錯誤がすべてプロンプト側で行われ、`--help` を読み直した run が1つも無かった。
+
 ## Grok を使うとき
 
 **推奨：サブスク枠（Grok Build CLI）**
@@ -217,11 +242,15 @@ grok login                                       # ブラウザで SuperGrok/X P
 **または API キー（従量課金フォールバック）**
 ```bash
 export XAI_API_KEY=xai-...
-export GROK_MODEL=grok-4    # 必要ならモデル上書き（最新を確認）
+export GROK_MODEL=grok-4.5   # 特定世代に固定したい時だけ。未設定が既定
 ```
 `run_grok.sh` は `grok` CLI があればそちらを優先し、無ければ API を使う。
 
+**モデルは既定で指定しない。** `GROK_MODEL` 未設定なら `-m` を渡さず CLI 既定に委ねるので、世代交代に自動で追随する（`grok models` で確認できる。2026-08-18 時点の既定は `grok-4.6`）。API フォールバック経路だけは model 必須なので、スクリプト内に世代を明示している。
+
 CLI 経路のプロンプトは **`--prompt-file`（一時ファイル渡し）** で渡す。argv だと単一引数長の上限 ≒128KB で exec が失敗し、**exit 0・空応答**で grok だけが無言で欠席するため（大型 pack のレビューで4回再発）。`--prompt-file` 非対応の古い CLI では argv にフォールバックするが、上限超過時は空応答ではなく明示エラー（exit 4）で落ちる。その場合は `grok update` で更新する。
+
+CLI 経路では **`--no-plan`（plan mode 無効化）と `--no-subagents`** も渡す（`--help` に出る時だけ。旧 CLI では渡さない）。エージェント型 CLI は既定で「計画を立てて承認を待つ」ので、非対話の単発実行では**計画を述べた時点で正常終了する**——観測された「〜を読み、〜します」だけのメタ応答は plan そのものの形だった。プロンプト側の文言強化（メタ発言禁止・出力形式の明示・節構成の固定）は9 run ぶん試して**すべて無効**だった。ただし `--no-plan` は**決定打ではなく**、導入後も同型の欠席が再発している（発生頻度を下げる緩和として扱い、回復は `check_answer.sh` の検査と SKILL の補完で担保する）。
 
 ## チューニング用の環境変数
 
@@ -232,9 +261,13 @@ CLI 経路のプロンプトは **`--prompt-file`（一時ファイル渡し）*
 | `QUORUM_NATIVE` | opus | Claudeホストのネイティブ枠の差し替え（`opus` \| `fable`）。**fable はユーザーの呼びかけ時のみ**（judge と同格でサブスク枠の使用量が大きい。宣言＋`fable_calls.log` 追記が必須）。補完で fable は増殖しない |
 | `QUORUM_TIMEOUT` | 300 | 各外部パネリストの実行時間上限（秒）。run スクリプトに内蔵、超過は欠席扱い |
 | `QUORUM_ABSENCE_WARN` | 3 | opt-in 済みなのに `--check` が通らない状態が何回連続したら stderr へ警告するか。`0` で無効。opt-out（exit 2）は数えない |
-| `QUORUM_STATE_DIR` | `~/.local/share/quorum` | 連続欠席カウンタ（`absence.tsv`）と連続 invalid カウンタ（`invalid.tsv`）の置き場 |
+| `QUORUM_STATE_DIR` | `~/.local/share/quorum` | 連続欠席カウンタ（`absence.tsv`）・連続 invalid カウンタ（`invalid.tsv`）・CLI 版の記録（`versions.tsv`）の置き場 |
 | `QUORUM_INVALID_WARN` | 2 | 同じ backend の `invalid_response` が何回連続したら stderr へ警告するか（`check_answer.sh --backend <name>` 使用時）。`0` で無効 |
 | `QUORUM_MIN_ANSWER_BYTES` | 500 | `check_answer.sh` が `too_short` と判定する下限。現状は監査記録のみで自動棄却しない。`run_grok.sh` のメタ応答リトライの判定閾値も兼ねる |
+| `QUORUM_PLAN_ONLY_MAX_BYTES` | 3000 | `plan_only`（作業予告だけの回答）判定を適用する上限。これを超える長文には適用しない（誤検知回避） |
+| `QUORUM_VERSION_WATCH` | 1 | backend CLI の版を記録し、前回から変わっていたら stderr で知らせる。`0` で無効 |
+| `QUORUM_VERSION_TIMEOUT` | 10 | `run_<name>.sh --version` の probe を打ち切る秒数 |
+| `QUORUM_INSTALL_CODEX` | 1 | `install.sh` が Codex 版（`$CODEX_HOME/skills/quorum` と `AGENTS.md` のトリアージブロック）を配置するか。`0` または `--no-codex` でスキップ。**パネリストとしての codex CLI（`QUORUM_ENABLE_CODEX`）とは別物** |
 | `QUORUM_GROK_RETRY` | 1 | `run_grok.sh` が正常終了かつ閾値未満の応答を1回だけ投げ直す（`0` で無効）。最悪レイテンシは `QUORUM_TIMEOUT` の2倍 |
 | `QUORUM_MAX_ARGV_BYTES` | 120000 | argv 渡しにフォールバックした時だけ効く上限（`--prompt-file` 非対応の旧 grok CLI 用）。超過は exit 4 |
 | `QUORUM_ENABLE_CLAUDE` | **オフ（未設定=不参加）** | `1`/`true`/`yes` でCodexホストの外部Claudeを参加。Claudeホストでは常に外部Claudeを除外 |
