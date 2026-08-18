@@ -4,7 +4,10 @@
 
 Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
-2026-08-13 に、利用側から届いた改善メモ3件（08-11 ×2 / 08-12）を取り込み、grok の**メタ応答（作業予告だけで exit 0）**対策を実装した。テストは181件。当PCへは配布済みだが**利用側PCは未配布**（`git pull && ./install.sh` 待ち）。残タスクは gemini 関連3件と、実運用データ待ちの1件、判断保留の refuter 工程。
+2026-08-18 に、利用側から届いた改善メモ9件（08-13〜08-18）を取り込み実装まで完了した。テストは230件。grok のメタ応答は**原因が plan mode と特定**され、`--no-plan` / `--no-subagents` を渡すようにした（決定打ではなく緩和）。あわせて check_answer に内容ベース判定、install に `--no-codex`、CLI 版の変化通知を追加。当PCへは配布済みだが**利用側PCは未配布**（`git pull && ./install.sh` 待ち）。残タスクは gemini 関連3件と、実運用データ待ちの1件、判断保留の refuter 工程、未着手1件。
+
+- **grok を「恒久故障」と断定してパネルから外さない**。6 run 連続欠席の後に復帰し、その回で単独でしか出ない高重大度の指摘を4件出した実績がある。外すのではなく毎回検知して補完する（実害は1体ぶんの待ち時間だけ）。疑うのは backend ではなく認証・CLI 版・オプション。
+- **外部CLIの `--help` を定期的に読み直す**。grok の不調の原因は CLI 側（plan mode）だったのに、9 run ぶんの試行錯誤がすべてプロンプト側で行われた。`detect_panel.sh` が版の変化を stderr で知らせるので、出たら `--help` を見る。
 
 - **利用側からの持ち込みは `git pull && ./install.sh` で受ける**。`IMPROVEMENTS.md` は install が張る symlink 経由でしか正本に届かないので、リポを移動したら install を回し直す（切れていると実運用の追記が正本に入らない。NOTES.md 参照）。
 - **`IMPROVEMENTS.md` は古い順・末尾追記**。並べ替えると全項目 conflict になり、その回の実質的な追記を巻き込んで失う。規約はヘッダ・箇条書き・両SKILLの3箇所にあり、`test_improvements_order.sh` が昇順を機械検査する。
@@ -13,6 +16,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 次にやること
 
+- [ ] **「依頼の型 × backend の適合表」を持つか判断する（未着手）**: 重い依頼（ツール実行を伴うレビュー）で特定 backend の優先度を下げる案。`--no-plan` 投入後の実走で欠席が減るかを先に観測してから決める（IMPROVEMENTS 2026-08-11 の②）
 - [ ] 実質回答なし検知の第2段（**データ待ち**）: この clone には checks.txt を持つ run が0件で誤棄却の有無を判断できない。運用が溜まったら `scripts/checks_summary.sh` を実行し、閾値付近に実質回答が無ければ run 側の最小バイト数ゲート（欠席扱い）へ格上げする（IMPROVEMENTS 2026-07-13）
 - [ ] **refuter 工程を quorum に新設するか判断する（保留）**: 利用側で mustFix 候補への敵対検証を2体・レンズ分け（データ攻め／論理・規範攻め）で回して効果が出ているが、quorum 側には敵対検証の step が無く（step 5 は fable 再judge）、cadence にも定義が無い。新 step の新設は実走の蓄積を見てから（IMPROVEMENTS 2026-08-11）
 - [ ] gemini/curl経路の実キーE2Eを確認する
@@ -21,6 +25,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 完了
 
+- 2026-08-18: 利用側の改善メモ9件（08-13〜08-18）を取り込み実装。①grok のメタ応答の原因が **plan mode** と判明し `--no-plan` / `--no-subagents` を probe 付きで付与（モデルは CLI 既定に委ね grok-4.6 へ追随、API 経路も更新）②`check_answer.sh` に内容ベース判定（`--expect` / `plan_only`）と `truncated_suspect`（exit 4）③`install.sh --no-codex`④`run_*.sh --version` 規約と `detect_panel.sh` の版変化通知⑤panel.md に「書き込み可否と作業場所」「実読2体は指示を分ける」、context-packing に「壊しうる検査基盤」。grok/codex CLI も更新（1.0.5 / 0.147.0）。テスト230件 → [checkpoint](docs/checkpoints/2026-08-18.md)
 - 2026-08-13: 利用側の改善メモ3件を取り込み、grok のメタ応答対策を実装。①`run_grok.sh` が閾値未満の正常終了を1回だけ投げ直す（`QUORUM_GROK_RETRY`）②`check_answer.sh --backend` で連続 invalid を警告（`--check` は通る型の恒久故障を検出）③両SKILLに「invalid の枠はネイティブ枠で1回補完・縮退を監査証跡へ」④rubric に「証跡の所在 vs 転記」。テスト181件 → [checkpoint](docs/checkpoints/2026-08-13.md)
 - 2026-08-09: `IMPROVEMENTS.md` の並びを規約と一致させた（先頭5項目の反転で全項目を古い順に／ヘッダのコメント・箇条書き・**両SKILL**の3箇所へ「末尾追記」規約を明記／`test_improvements_order.sh` で昇順とヘッダ文言を機械検査）。利用側 mirror の pull で全22項目 conflict が起きた原因。テスト162件 → [checkpoint](docs/checkpoints/2026-08-09.md)
 - 2026-08-09: 利用側から届いた改善メモをトリアージ。新規は1件（grok の E2BIG 無音死）で、①prompt 受け渡しは `--prompt-file` 化で解消済み・③pack サイズ注意は取り下げ・**②空応答時に stderr 先頭行を `invalid_response:empty:<先頭行>` へ転記のみ新規実装**（原因の違う無音死を判別可能に。集計キーは不変）。テスト153件 → [checkpoint](docs/checkpoints/2026-08-09.md)
