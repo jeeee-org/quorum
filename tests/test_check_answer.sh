@@ -35,8 +35,14 @@ out="$(bash "$CHECK" "$TMP/short.md")"; rc=$?
 t "短文は invalid_response:too_short" "$(case "$out" in invalid_response:too_short:*B) [ "$rc" = "3" ] ;; *) false ;; esac; echo $?)"
 
 # 閾値は QUORUM_MIN_ANSWER_BYTES で変更可
-out="$(QUORUM_MIN_ANSWER_BYTES=5 bash "$CHECK" "$TMP/short.md")"
+# 題材は「予告文でない」短文にする——short.md（「これから確認します。」）は plan_only の標的
+# そのものなので、閾値を下げると too_short ではなく plan_only で落ちる（下でその挙動を検証）。
+printf '答えは 42 です。' > "$TMP/short_valid.md"
+out="$(QUORUM_MIN_ANSWER_BYTES=5 bash "$CHECK" "$TMP/short_valid.md")"
 t "閾値を下げれば同じ短文でも ok" "$([ "$out" = "ok" ]; echo $?)"
+
+out="$(QUORUM_MIN_ANSWER_BYTES=5 bash "$CHECK" "$TMP/short.md")"
+t "閾値を下げても作業予告は plan_only で落ちる" "$([ "$out" = "invalid_response:plan_only" ]; echo $?)"
 
 # stdin モード
 out="$(python3 -c "print('回答 ' * 200)" | bash "$CHECK")"
@@ -102,6 +108,92 @@ t "C ロケールでも壊れたマルチバイト列を残さない" "$?"
 
 out="$(bash "$CHECK" "$TMP/long.md" "$TMP/argv.err")"
 t "本文があれば stderr に関係なく ok" "$([ "$out" = "ok" ]; echo $?)"
+
+# --- 内容ベースの判定（IMPROVEMENTS 2026-08-13 / 08-15） ---
+# 背景: バイト数だけの検査は「閾値を超えた作業予告」を素通しする（588B の予告が実際にすり抜けた）。
+# 閾値を上げる対処は正当な短答を殺すので採らない ∴ 中身で見る。
+
+# 実際に観測された型（500B 超の作業予告だけ・構造なし）
+python3 -c "print('依頼の全文を読み、契約書と突き合わせて確認します。' * 20)" > "$TMP/plan_long.md"
+out="$(bash "$CHECK" "$TMP/plan_long.md")"; rc=$?
+t "閾値を超えた作業予告は plan_only（byte 検査の穴を塞ぐ）" \
+  "$([ "$out" = "invalid_response:plan_only" ] && [ "$rc" = "3" ]; echo $?)"
+
+t "その予告は too_short では拾えない（穴が実在することの確認）" \
+  "$([ "$(wc -c < "$TMP/plan_long.md")" -ge 500 ]; echo $?)"
+
+# 構造（見出し・箇条書き等）があれば plan_only にしない
+printf '## 判定\n\n- 全文を読み、確認します\n' > "$TMP/structured.md"
+out="$(QUORUM_MIN_ANSWER_BYTES=5 bash "$CHECK" "$TMP/structured.md")"
+t "構造マーカーがあれば plan_only にしない" "$([ "$out" = "ok" ]; echo $?)"
+
+# 予告文でない行が混じれば plan_only にしない
+printf 'まず全文を確認します。\n判定は CONDITIONAL_PASS。\n' > "$TMP/mixed.md"
+out="$(QUORUM_MIN_ANSWER_BYTES=5 bash "$CHECK" "$TMP/mixed.md")"
+t "実質的な行が1つでもあれば plan_only にしない" "$([ "$out" = "ok" ]; echo $?)"
+
+# 長文の散文は対象外（上限バイトのガード）
+out="$(QUORUM_PLAN_ONLY_MAX_BYTES=10 bash "$CHECK" "$TMP/plan_long.md")"
+t "QUORUM_PLAN_ONLY_MAX_BYTES を下回らせれば plan_only を適用しない" "$([ "$out" = "ok" ]; echo $?)"
+
+# --- --expect（呼び出し側が求める語） ---
+out="$(bash "$CHECK" --expect 回答本文 "$TMP/long.md")"; rc=$?
+t "--expect の語が含まれれば ok" "$([ "$out" = "ok" ] && [ "$rc" = "0" ]; echo $?)"
+
+out="$(bash "$CHECK" --expect 欠陥 "$TMP/long.md")"; rc=$?
+t "--expect の語が無ければ missing_expected" \
+  "$([ "$out" = "invalid_response:missing_expected:欠陥" ] && [ "$rc" = "3" ]; echo $?)"
+
+out="$(bash "$CHECK" --expect 欠陥 --expect 回答本文 "$TMP/long.md")"
+t "--expect は OR 判定（1語でも含めば通す）" "$([ "$out" = "ok" ]; echo $?)"
+
+out="$(bash "$CHECK" --expect 欠陥 --expect デグレ "$TMP/long.md")"
+t "全語欠落なら候補を | で連ねて報告する" \
+  "$([ "$out" = "invalid_response:missing_expected:欠陥|デグレ" ]; echo $?)"
+
+out="$(bash "$CHECK" --expect=回答本文 "$TMP/long.md")"
+t "--expect=<語> の形も受ける" "$([ "$out" = "ok" ]; echo $?)"
+
+bash "$CHECK" --expect >/dev/null 2>&1
+t "--expect に値が無ければ exit 2" "$([ "$?" = "2" ]; echo $?)"
+
+# --- truncated_suspect（末尾切れ・exit 4。実質回答なしではない） ---
+BODY="$(python3 -c "print('## 総評\n\n本文がここに続く。' * 30)")"
+
+printf '%s\n## 4. 見落とし\n\n契約書に書いていないと' "$BODY" > "$TMP/mid.md"
+out="$(bash "$CHECK" "$TMP/mid.md")"; rc=$?
+t "文の途中で切れた長文は truncated_suspect:midsentence / exit 4" \
+  "$([ "$out" = "truncated_suspect:midsentence" ] && [ "$rc" = "4" ]; echo $?)"
+
+printf '%s\n## 5. まとめ\n' "$BODY" > "$TMP/head.md"
+out="$(bash "$CHECK" "$TMP/head.md")"
+t "見出しだけで終わるなら truncated_suspect:heading" "$([ "$out" = "truncated_suspect:heading" ]; echo $?)"
+
+printf '%s\n```bash\nfoo() {\n' "$BODY" > "$TMP/fence.md"
+out="$(bash "$CHECK" "$TMP/fence.md")"
+t "コードフェンス未閉じなら truncated_suspect:unclosed_fence" \
+  "$([ "$out" = "truncated_suspect:unclosed_fence" ]; echo $?)"
+
+printf '%s\n- 出典必須\n- 各事実に file:line かコマンド名\n' "$BODY" > "$TMP/taigen.md"
+out="$(bash "$CHECK" "$TMP/taigen.md")"
+t "体言止めの箇条書きで終わるのは誤検知しない" "$([ "$out" = "ok" ]; echo $?)"
+
+t "truncated_suspect は invalid_response と別系統（exit が 3 でない）" \
+  "$(out2="$(bash "$CHECK" "$TMP/mid.md")"; case "$out2" in invalid_response:*) false ;; *) true ;; esac; echo $?)"
+
+# truncated_suspect は「回答している」ので連続 invalid カウンタを進めない
+ST="$TMP/state_trunc"; rm -rf "$ST"
+QUORUM_STATE_DIR="$ST" bash "$CHECK" --backend tb "$TMP/empty.md" >/dev/null 2>&1
+QUORUM_STATE_DIR="$ST" bash "$CHECK" --backend tb "$TMP/mid.md" >/dev/null 2>&1
+t "truncated_suspect はカウンタを 0 に戻す（回答はしている）" \
+  "$([ "$(awk -F'\t' '$1=="tb"{print $2}' "$ST/invalid.tsv")" = "0" ]; echo $?)"
+
+# 警告文は「恒久故障と断定するな」を含む（IMPROVEMENTS 2026-08-18）
+ST2="$TMP/state_warn"; rm -rf "$ST2"
+QUORUM_STATE_DIR="$ST2" bash "$CHECK" --backend wb "$TMP/empty.md" >/dev/null 2>&1
+warn="$(QUORUM_STATE_DIR="$ST2" bash "$CHECK" --backend wb "$TMP/empty.md" 2>&1 >/dev/null)"
+t "連続警告は「恒久故障と断定せず枠は残す」を含む" \
+  "$(printf '%s' "$warn" | grep -q '恒久故障と断定せず'; echo $?)"
 
 echo "----"
 echo "PASS=$PASS FAIL=$FAIL"
