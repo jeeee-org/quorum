@@ -4,7 +4,7 @@
 
 Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
-2026-08-19 に利用側の改善メモ1件（2巡目レビューの型）を取り込み、`context-packing.md` に「2巡目は『前巡の指摘が閉じたか』を問う形に組む」節を新設した。前日 08-18 には改善メモ9件（08-13〜08-18）を実装済み。テストは230件。grok のメタ応答は**原因が plan mode と特定**され `--no-plan` / `--no-subagents` を渡す（緩和であって決定打ではない）。当PCへは配布済みだが**利用側PCは未配布**（`git pull && ./install.sh` 待ち）。残タスクは gemini 関連3件、データ待ち1件、判断保留の refuter 工程、未着手1件。
+2026-08-19 に利用側の改善メモ計3件（2巡目レビューの型／pack の diff 範囲ミス／Consensus の1段掘り）を取り込み実装した。前日 08-18 には9件（08-13〜08-18）を実装済み。テストは230件。grok のメタ応答は**原因が plan mode と特定**され `--no-plan` / `--no-subagents` を渡す（緩和であって決定打ではない）。当PCへは配布済みだが**利用側PCは未配布**（`git pull && ./install.sh` 待ち）。残タスクは gemini 関連3件、データ待ち1件、判断保留の refuter 工程、未着手1件。
 
 - **grok を「恒久故障」と断定してパネルから外さない**。6 run 連続欠席の後に復帰し、その回で単独でしか出ない高重大度の指摘を4件出した実績がある。外すのではなく毎回検知して補完する（実害は1体ぶんの待ち時間だけ）。疑うのは backend ではなく認証・CLI 版・オプション。
 - **外部CLIの `--help` を定期的に読み直す**。grok の不調の原因は CLI 側（plan mode）だったのに、9 run ぶんの試行錯誤がすべてプロンプト側で行われた。`detect_panel.sh` が版の変化を stderr で知らせるので、出たら `--help` を見る。
@@ -25,6 +25,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 完了
 
+- 2026-08-19: 改善メモ2件を取り込み実装。①`context-packing.md` に **コード差分は範囲を検算してから貼る**節（`~N` を使わず `<分岐 commit>..<HEAD>`・`git log --oneline` で目視・触ったファイル一覧欄）＋ judge_rubric に「スコープ外の変更／版違い」型の検算行——**材料の誤りは全員が共有するので多数決では検出できない** ②judge_rubric と両SKILL の Consensus に **「同じ結論≠同じ理由」の1段掘り**（食い違えば Contradictions へ）③`panel.md` に **アクセス権の多様性の実走表**（枠を削る判断で失う列が見える）。テスト230件 → [checkpoint](docs/checkpoints/2026-08-19.md)
 - 2026-08-19: 利用側の改善メモ1件を取り込み実装。`references/context-packing.md` に **2巡目（再レビュー）pack の組み方**を新設（①指摘は ID つき本文で貼る ②回答は「指摘ごとの判定／新しい欠陥／総合判定」の3分割 ③前巡の judge を渡す枠と渡さない枠を混ぜない＝既定は**指摘リストのみ**でアンカリングを避ける）＋テンプレ欄・両SKILLからの参照・`--expect` への接続。テスト230件 → [checkpoint](docs/checkpoints/2026-08-19.md)
 - 2026-08-18: 利用側の改善メモ9件（08-13〜08-18）を取り込み実装。①grok のメタ応答の原因が **plan mode** と判明し `--no-plan` / `--no-subagents` を probe 付きで付与（モデルは CLI 既定に委ね grok-4.6 へ追随、API 経路も更新）②`check_answer.sh` に内容ベース判定（`--expect` / `plan_only`）と `truncated_suspect`（exit 4）③`install.sh --no-codex`④`run_*.sh --version` 規約と `detect_panel.sh` の版変化通知⑤panel.md に「書き込み可否と作業場所」「実読2体は指示を分ける」、context-packing に「壊しうる検査基盤」。grok/codex CLI も更新（1.0.5 / 0.147.0）。テスト230件 → [checkpoint](docs/checkpoints/2026-08-18.md)
 - 2026-08-13: 改善メモ3件を取り込み grok のメタ応答対策（閾値未満の投げ直し／連続 invalid 警告／ネイティブ枠での補完と縮退記録）。テスト181件 → [checkpoint](docs/checkpoints/2026-08-13.md)
