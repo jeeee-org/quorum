@@ -24,6 +24,7 @@ description: 高ステークスかつ広さ・盲点リスクが支配的な問�
 ## 2. 独立・並列 fan-out
 
 1. 問いが複数ファイルやライブ状態に依存する時だけ `references/context-packing.md` に従い、自己完結した `$PROMPT` を作る。小さい問いは元の問いをそのまま使う。
+   - 同じ問いの2巡目（差し戻し後の再レビュー）は、前巡の指摘を ID つきの本文で貼り「閉じたか」を問う形に組む（`references/context-packing.md`「2巡目（再レビュー）は…」）。回答は「①指摘ごとの判定 ②新しい欠陥 ③総合判定」の3分割で要求し、**前巡の judge 成果物を渡す枠と渡さない枠を混ぜない**。
 2. `RUN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/quorum/runs/$(date -u +%Y%m%dT%H%M%SZ)"` を作り、`prompt.md` と `<匿名ラベル>\t<backend>\t<visibility>` 形式の `mapping.txt` を保存する（visibility = `repo`/`pack-only`/`unknown`。backend 名で決めつけず回答内容で判定する）。同名が既にあれば衝突しない接尾辞を付ける。
 3. 全パネリストを待たずに起動する。
    - `codex-native`: 1行につき新しい直接サブエージェントを1体 spawn する。会話履歴や他回答を渡さず、同じ `$PROMPT` だけを渡す。複数なら `codex-native#1` のように区別する。
