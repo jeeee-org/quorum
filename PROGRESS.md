@@ -4,7 +4,7 @@
 
 Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claudeは opus、Codexは codex-native を同族補完枠にし、共通の外部バックエンド・judge rubric・監査証跡を使う。CodexのT1分類は `claude-rules` から `$quorum` へ接続済み。
 
-2026-08-18 に、利用側から届いた改善メモ9件（08-13〜08-18）を取り込み実装まで完了した。テストは230件。grok のメタ応答は**原因が plan mode と特定**され、`--no-plan` / `--no-subagents` を渡すようにした（決定打ではなく緩和）。あわせて check_answer に内容ベース判定、install に `--no-codex`、CLI 版の変化通知を追加。当PCへは配布済み（配置先の実物で新判定の発火まで検証済み）だが、**利用側PCは未配布**（`git pull && ./install.sh` 待ち）。残タスクは gemini 関連3件と、実運用データ待ちの1件、判断保留の refuter 工程、未着手1件。
+2026-08-19 に、利用側から届いた改善メモ1件（2巡目レビューの型）を取り込み、`context-packing.md` に「2巡目（再レビュー）は『前巡の指摘が閉じたか』を問う形に組む」節を新設した（当PCへ配布済み）。その前日 08-18 には改善メモ9件（08-13〜08-18）を取り込み実装まで完了。テストは230件。grok のメタ応答は**原因が plan mode と特定**され、`--no-plan` / `--no-subagents` を渡すようにした（決定打ではなく緩和）。あわせて check_answer に内容ベース判定、install に `--no-codex`、CLI 版の変化通知を追加。当PCへは配布済み（配置先の実物で新判定の発火まで検証済み）だが、**利用側PCは未配布**（`git pull && ./install.sh` 待ち）。残タスクは gemini 関連3件と、実運用データ待ちの1件、判断保留の refuter 工程、未着手1件。
 
 - **grok を「恒久故障」と断定してパネルから外さない**。6 run 連続欠席の後に復帰し、その回で単独でしか出ない高重大度の指摘を4件出した実績がある。外すのではなく毎回検知して補完する（実害は1体ぶんの待ち時間だけ）。疑うのは backend ではなく認証・CLI 版・オプション。
 - **外部CLIの `--help` を定期的に読み直す**。grok の不調の原因は CLI 側（plan mode）だったのに、9 run ぶんの試行錯誤がすべてプロンプト側で行われた。`detect_panel.sh` が版の変化を stderr で知らせるので、出たら `--help` を見る。
@@ -25,6 +25,7 @@ Claude Code / Codex 両ホスト対応が完了し、運用フェーズ。Claude
 
 ## 完了
 
+- 2026-08-19: 利用側の改善メモ1件を取り込み実装。`references/context-packing.md` に **2巡目（再レビュー）pack の組み方**を新設（①指摘は ID つき本文で貼る ②回答は「指摘ごとの判定／新しい欠陥／総合判定」の3分割 ③前巡の judge を渡す枠と渡さない枠を混ぜない＝既定は**指摘リストのみ**でアンカリングを避ける）＋テンプレ欄・両SKILLからの参照・`--expect` への接続。テスト230件 → [checkpoint](docs/checkpoints/2026-08-19.md)
 - 2026-08-18: 利用側の改善メモ9件（08-13〜08-18）を取り込み実装。①grok のメタ応答の原因が **plan mode** と判明し `--no-plan` / `--no-subagents` を probe 付きで付与（モデルは CLI 既定に委ね grok-4.6 へ追随、API 経路も更新）②`check_answer.sh` に内容ベース判定（`--expect` / `plan_only`）と `truncated_suspect`（exit 4）③`install.sh --no-codex`④`run_*.sh --version` 規約と `detect_panel.sh` の版変化通知⑤panel.md に「書き込み可否と作業場所」「実読2体は指示を分ける」、context-packing に「壊しうる検査基盤」。grok/codex CLI も更新（1.0.5 / 0.147.0）。テスト230件 → [checkpoint](docs/checkpoints/2026-08-18.md)
 - 2026-08-13: 利用側の改善メモ3件を取り込み、grok のメタ応答対策を実装。①`run_grok.sh` が閾値未満の正常終了を1回だけ投げ直す（`QUORUM_GROK_RETRY`）②`check_answer.sh --backend` で連続 invalid を警告（`--check` は通る型の恒久故障を検出）③両SKILLに「invalid の枠はネイティブ枠で1回補完・縮退を監査証跡へ」④rubric に「証跡の所在 vs 転記」。テスト181件 → [checkpoint](docs/checkpoints/2026-08-13.md)
 - 2026-08-09: `IMPROVEMENTS.md` の並びを規約と一致させた（先頭5項目の反転で全項目を古い順に／ヘッダのコメント・箇条書き・**両SKILL**の3箇所へ「末尾追記」規約を明記／`test_improvements_order.sh` で昇順とヘッダ文言を機械検査）。利用側 mirror の pull で全22項目 conflict が起きた原因。テスト162件 → [checkpoint](docs/checkpoints/2026-08-09.md)
